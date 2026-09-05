@@ -1,4 +1,4 @@
-﻿# Dependencies
+# Dependencies
 node_modules/
 server/node_modules/
 */node_modules/
@@ -25,3 +25,5 @@ ehthumbs.db
 .idea/
 .vscode/
 .system_generated/
+.wrangler/
+

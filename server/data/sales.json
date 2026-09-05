@@ -1,5 +1,42 @@
 [
   {
+    "_id": "sale_183085",
+    "invoiceNo": "INV-2026-004",
+    "invoiceNumber": "INV-2026-004",
+    "date": "2026-09-05T17:59:43.085Z",
+    "farmerId": null,
+    "farmerCode": null,
+    "customerName": "Walk-in Customer",
+    "customerPhone": "",
+    "customerAddress": "Bargarh, Odisha",
+    "items": [
+      {
+        "productId": "prod_004",
+        "name": "Neem Coated Urea (45 kg)",
+        "productName": "Neem Coated Urea (45 kg)",
+        "category": "FERTILIZERS",
+        "unit": "Bags",
+        "qty": 1,
+        "quantity": 1,
+        "rate": 266,
+        "unitPrice": 266,
+        "amount": 266,
+        "total": 266
+      }
+    ],
+    "subtotal": 266,
+    "discount": 0,
+    "tax": 31.92,
+    "grandTotal": 297.92,
+    "total": 297.92,
+    "paidAmount": 266,
+    "balanceDue": 31.920000000000016,
+    "paymentMode": "CASH",
+    "paymentStatus": "PARTIAL",
+    "notes": "",
+    "createdAt": "2026-09-05T17:59:43.085Z"
+  },
+  {
     "_id": "sale_001",
     "invoiceNo": "INV-2026-001",
     "invoiceNumber": "INV-2026-001",
