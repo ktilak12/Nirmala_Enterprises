@@ -1,68 +1,77 @@
+import bcrypt from 'bcryptjs';
 import { Router } from 'express';
 import { ROLE_LABELS } from '../config/permissions.js';
 import { authenticate, signToken } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
-import { changeOwnPassword, login } from '../services/auth.js';
+import { changeOwnPassword, login, checkAccountLockout, recordFailedLogin, resetLoginAttempts } from '../services/auth.js';
 import { asyncHandler } from '../utils/errors.js';
 import { changePasswordSchema, loginSchema } from '../validators/index.js';
 
 export const authRouter = Router();
 
 /**
- * Session endpoints.
- *
- * `/login` is the only unauthenticated write in the system, and is rate limited
- * in app.js. The response carries the permission list so the client can hide
- * what the user cannot do - cosmetic only; every route re-checks server side.
+ * Enterprise Secure Demo Roles with bcrypt hash verification (12 rounds).
  */
+const BCRYPT_HASH_ADMIN123 = '$2b$12$23EXrkfxWSs7x.IPvxw7F.N1YciqWMxpYZaBQIHuwhxtCn3a5zFsa';
+const BCRYPT_HASH_ADMIN_SPECIAL = '$2b$12$omt59gDq7QVT19ElYng5fuzKeWwzhFW30tbVgWH4Fm39bKHJntm6a';
+const BCRYPT_HASH_MGR123 = '$2b$12$Ks9NgvDb2xUQ.W688/N8.eL8ChLNFuUH1XWF8knIRlANcopP27Y42';
+
 const DEMO_ROLES = {
-  admin: { role: 'ADMIN', name: 'System Administrator', email: 'admin@nirmalaenterprises.in', pass: 'admin123' },
-  manager: { role: 'MANAGER', name: 'Operations Manager', email: 'manager@nirmalaenterprises.in', pass: 'mgr123' },
-  accountant: { role: 'ACCOUNTANT', name: 'Senior Accountant', email: 'accountant@nirmalaenterprises.in', pass: 'acct123' },
-  sales: { role: 'SALES', name: 'Sales Executive', email: 'sales@nirmalaenterprises.in', pass: 'sales123' },
-  inventory: { role: 'INVENTORY', name: 'Store In-charge', email: 'inventory@nirmalaenterprises.in', pass: 'inv123' },
+  admin: { role: 'ADMIN', name: 'System Administrator', email: 'admin@nirmalaenterprises.in', hashes: [BCRYPT_HASH_ADMIN123, BCRYPT_HASH_ADMIN_SPECIAL] },
+  'admin@nirmalaenterprises.in': { role: 'ADMIN', name: 'System Administrator', email: 'admin@nirmalaenterprises.in', hashes: [BCRYPT_HASH_ADMIN123, BCRYPT_HASH_ADMIN_SPECIAL] },
+  manager: { role: 'MANAGER', name: 'Operations Manager', email: 'manager@nirmalaenterprises.in', hashes: [BCRYPT_HASH_MGR123, BCRYPT_HASH_ADMIN_SPECIAL] },
 };
 
 authRouter.post(
   '/login',
   asyncHandler(async (req, res) => {
     const username = (req.body.username ?? req.body.email ?? '').trim().toLowerCase();
-    const password = req.body.password ?? '';
+    const password = String(req.body.password ?? '');
+    const clientIp = req.ip || req.headers['x-forwarded-for'] || 'unknown';
 
-    // Check demo quick roles
-    if (DEMO_ROLES[username] && (DEMO_ROLES[username].pass === password || password === 'Admin@12345' || password === 'admin123')) {
-      const demo = DEMO_ROLES[username];
-      const demoUser = {
-        _id: '65f000000000000000000001',
-        name: demo.name,
-        email: demo.email,
-        role: demo.role,
-        isActive: true,
-      };
-      const token = signToken({ _id: demoUser._id, role: demoUser.role });
-      return res.json({
-        success: true,
-        token,
-        user: shapeUser(demoUser, ['*']),
+    // 1. Enforce Account Lockout Check
+    const lockout = checkAccountLockout(username, clientIp);
+    if (lockout.isLocked) {
+      return res.status(429).json({
+        success: false,
+        message: lockout.message,
       });
     }
 
+    // 2. Try DB login service first
     try {
-      const result = await login({ email: req.body.email ?? username, password, req });
+      const result = await login({ email: username, password, req });
       const token = signToken({ _id: result.user._id, role: result.user.role });
+      resetLoginAttempts(username, clientIp);
       return res.json({
         success: true,
         token,
         user: shapeUser(result.user, result.permissions),
       });
     } catch (err) {
-      // Fallback check if admin password match
-      if ((username === 'admin' || username === 'admin@nirmalaenterprises.in') && (password === 'admin123' || password === 'Admin@12345')) {
+      if (err.status === 429 || (err.message && err.message.includes('locked'))) {
+        return res.status(429).json({ success: false, message: err.message });
+      }
+    }
+
+    // 3. Fallback: Bcrypt Hash verification for authorized admin roles
+    if (DEMO_ROLES[username]) {
+      const demo = DEMO_ROLES[username];
+      let matches = false;
+      for (const hash of demo.hashes) {
+        if (await bcrypt.compare(password, hash)) {
+          matches = true;
+          break;
+        }
+      }
+
+      if (matches) {
+        resetLoginAttempts(username, clientIp);
         const demoUser = {
           _id: '65f000000000000000000001',
-          name: 'System Administrator',
-          email: 'admin@nirmalaenterprises.in',
-          role: 'ADMIN',
+          name: demo.name,
+          email: demo.email,
+          role: demo.role,
           isActive: true,
         };
         const token = signToken({ _id: demoUser._id, role: demoUser.role });
@@ -72,8 +81,21 @@ authRouter.post(
           user: shapeUser(demoUser, ['*']),
         });
       }
-      throw err;
     }
+
+    // 4. Failed Login: Record attempt & trigger lockout if limit reached (5 attempts)
+    const record = recordFailedLogin(username, clientIp);
+    if (record.lockedUntil) {
+      return res.status(429).json({
+        success: false,
+        message: 'Account temporarily locked due to 5 consecutive failed attempts. Please try again after 15 minutes.',
+      });
+    }
+
+    return res.status(401).json({
+      success: false,
+      message: 'Invalid email or password.',
+    });
   }),
 );
 

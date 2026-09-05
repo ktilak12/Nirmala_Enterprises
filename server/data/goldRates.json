@@ -1,12 +1,12 @@
 {
-  "rate24kPerGram": 7300,
-  "rate22kPerGram": 6695,
-  "rate18kPerGram": 5475,
-  "rate24kPer10g": 73000,
-  "rate22kPer10g": 66950,
+  "rate24kPerGram": 7280,
+  "rate22kPerGram": 6675,
+  "rate18kPerGram": 5460,
+  "rate24kPer10g": 72800,
+  "rate22kPer10g": 66750,
   "silverPerKg": 86500,
   "changeToday": "+₹45 (+0.68%)",
   "trend": "UP",
   "marketSource": "Odisha Bullion / Bargarh APMC Lending Benchmark",
-  "lastUpdated": "2026-09-05T17:20:14.443Z"
+  "lastUpdated": "2026-09-05T17:30:56.131Z"
 }

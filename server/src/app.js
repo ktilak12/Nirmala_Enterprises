@@ -41,12 +41,15 @@ export function createApp() {
    * it is the one endpoint where guessing repeatedly is the whole attack
    * (Section 45).
    */
+  /**
+   * Login is rate limited strictly (max 5 failed attempts per 15 mins) to prevent brute-force attacks.
+   */
   const loginLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    limit: env.isProduction ? 10 : 1000,
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    limit: 5, // 5 requests max per 15 minutes per IP
     standardHeaders: 'draft-7',
     legacyHeaders: false,
-    message: { error: 'Too many sign-in attempts. Please wait 15 minutes and try again.' },
+    message: { success: false, message: 'Too many sign-in attempts from this IP. Please wait 15 minutes and try again.' },
   });
 
   const apiLimiter = rateLimit({
@@ -54,16 +57,14 @@ export function createApp() {
     limit: 300,
     standardHeaders: 'draft-7',
     legacyHeaders: false,
-    message: { error: 'Too many requests. Please slow down.' },
+    message: { success: false, message: 'Too many requests. Please slow down.' },
   });
 
   app.get('/api/health', (_req, res) => {
     res.json({ ok: true, service: 'nirmala-api', env: env.nodeEnv });
   });
 
-  if (env.isProduction) {
-    app.use('/api/auth/login', loginLimiter);
-  }
+  app.use('/api/auth/login', loginLimiter);
   app.use('/api', mockRouter);
   app.use('/api', apiLimiter, apiRouter);
 

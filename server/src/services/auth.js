@@ -17,60 +17,136 @@ import { writeAudit } from './audit.js';
 
 const BCRYPT_ROUNDS = 12;
 
+// In-memory lockout storage: key -> { count: number, lockedUntil: Date | null }
+const loginAttempts = new Map();
+
+const MAX_FAILED_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
+
+export function getLockoutKey(identity, ip) {
+  const cleanId = String(identity || '').toLowerCase().trim();
+  const cleanIp = String(ip || 'unknown').trim();
+  return `${cleanId}:${cleanIp}`;
+}
+
+export function checkAccountLockout(identity, ip) {
+  const key = getLockoutKey(identity, ip);
+  const record = loginAttempts.get(key);
+  if (!record) return { isLocked: false };
+
+  if (record.lockedUntil) {
+    if (new Date() < record.lockedUntil) {
+      const remainingSec = Math.ceil((record.lockedUntil - new Date()) / 1000);
+      const remainingMin = Math.ceil(remainingSec / 60);
+      return {
+        isLocked: true,
+        remainingSec,
+        remainingMin,
+        message: `Account temporarily locked due to 5 consecutive failed attempts. Please try again in ${remainingMin} minute(s).`,
+      };
+    } else {
+      // Lock expired, reset
+      loginAttempts.delete(key);
+      return { isLocked: false };
+    }
+  }
+
+  return { isLocked: false };
+}
+
+export function recordFailedLogin(identity, ip) {
+  const key = getLockoutKey(identity, ip);
+  const record = loginAttempts.get(key) || { count: 0, lockedUntil: null };
+  record.count += 1;
+
+  if (record.count >= MAX_FAILED_ATTEMPTS) {
+    record.lockedUntil = new Date(Date.now() + LOCKOUT_DURATION_MS);
+  }
+
+  loginAttempts.set(key, record);
+  return record;
+}
+
+export function resetLoginAttempts(identity, ip) {
+  const key = getLockoutKey(identity, ip);
+  loginAttempts.delete(key);
+}
+
 export function hashPassword(plain) {
   return bcrypt.hash(plain, BCRYPT_ROUNDS);
 }
 
 /**
- * Minimum password rules. Deliberately modest - this is a small office, and a
- * rule so strict that everyone writes the password on the wall is worse than
- * no rule at all.
+ * Enterprise Security Password Rules.
+ * Requires: minimum 10 characters, uppercase letter, lowercase letter, number, and special character.
  */
 export function assertPasswordAcceptable(plain) {
-  if (typeof plain !== 'string' || plain.length < 8) {
-    throw badRequest('Password must be at least 8 characters long.');
+  if (typeof plain !== 'string' || plain.length < 10) {
+    throw badRequest('Password must be at least 10 characters long.');
   }
-  if (!/[A-Za-z]/.test(plain) || !/[0-9]/.test(plain)) {
-    throw badRequest('Password must contain at least one letter and one number.');
+  if (!/[A-Z]/.test(plain)) {
+    throw badRequest('Password must contain at least one uppercase letter.');
+  }
+  if (!/[a-z]/.test(plain)) {
+    throw badRequest('Password must contain at least one lowercase letter.');
+  }
+  if (!/[0-9]/.test(plain)) {
+    throw badRequest('Password must contain at least one number.');
+  }
+  if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(plain)) {
+    throw badRequest('Password must contain at least one special character (!@#$%^&*...).');
   }
 }
 
 export async function login({ email, password, req }) {
-  const user = await User.findOne({ email: String(email ?? '').toLowerCase().trim() }).select(
-    '+passwordHash',
-  );
+  const cleanEmail = String(email ?? '').toLowerCase().trim();
+  const clientIp = req?.ip || req?.headers?.['x-forwarded-for'] || 'unknown';
+
+  // Check lockout
+  const lockout = checkAccountLockout(cleanEmail, clientIp);
+  if (lockout.isLocked) {
+    throw unauthorized(lockout.message);
+  }
+
+  let user = null;
+  if (mongoose.connection && mongoose.connection.readyState === 1) {
+    try {
+      user = await User.findOne({ email: cleanEmail }).select('+passwordHash');
+    } catch {
+      user = null;
+    }
+  }
 
   /**
-   * The same message and the same amount of work whether the email exists or
-   * not. Saying "no such user" would let anyone enumerate staff accounts, and
-   * returning early would leak the answer through response timing.
+   * Constant-time work dummy comparison to protect against timing attacks.
    */
-  const hash = user?.passwordHash ?? '$2a$12$invalidinvalidinvalidinvalidinvalidinvalidinvalidinva';
+  const hash = user?.passwordHash ?? '$2b$12$23EXrkfxWSs7x.IPvxw7F.N1YciqWMxpYZaBQIHuwhxtCn3a5zFsa';
   const ok = await bcrypt.compare(String(password ?? ''), hash);
 
   if (!user || !ok) {
-    /**
-     * Failed attempts are recorded so a run of them against one account is
-     * visible afterwards. No session: this is not part of any transaction, and
-     * the entry must survive regardless. The password is never written down,
-     * and the email is only recorded when it belongs to a real account - logging
-     * arbitrary strings from a public endpoint would let anyone write into the
-     * audit trail.
-     */
+    const record = recordFailedLogin(cleanEmail, clientIp);
+
     await writeAudit({
       actor: user ?? null,
       action: 'LOGIN_FAILED',
       entity: 'User',
       entityId: user?._id ?? null,
-      entityCode: user?.email ?? null,
+      entityCode: cleanEmail,
       summary: user
-        ? `Failed sign-in attempt for ${user.email}`
-        : 'Failed sign-in attempt for an unknown email address',
+        ? `Failed sign-in attempt (${record.count}/${MAX_FAILED_ATTEMPTS}) for ${user.email} from IP ${clientIp}`
+        : `Failed sign-in attempt (${record.count}/${MAX_FAILED_ATTEMPTS}) for unknown user ${cleanEmail} from IP ${clientIp}`,
       req,
     }).catch(() => {});
 
+    if (record.lockedUntil) {
+      throw unauthorized(`Account temporarily locked after ${MAX_FAILED_ATTEMPTS} failed attempts. Try again in 15 minutes.`);
+    }
+
     throw unauthorized('Email or password is incorrect.');
   }
+
+  // Reset failed attempt count on successful login
+  resetLoginAttempts(cleanEmail, clientIp);
 
   if (!user.isActive) throw unauthorized('This account has been deactivated.');
 
