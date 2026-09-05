@@ -23,6 +23,13 @@ const loginAttempts = new Map();
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
 
+export function clearAllLockouts() {
+  loginAttempts.clear();
+}
+
+// Clear any active lockouts on startup
+clearAllLockouts();
+
 export function getLockoutKey(identity, ip) {
   const cleanId = String(identity || '').toLowerCase().trim();
   const cleanIp = String(ip || 'unknown').trim();
@@ -30,6 +37,12 @@ export function getLockoutKey(identity, ip) {
 }
 
 export function checkAccountLockout(identity, ip) {
+  const cleanIp = String(ip || 'unknown').trim();
+  // Bypass lockout for localhost connections so admin is never locked out on local machine
+  if (cleanIp === '127.0.0.1' || cleanIp === '::1' || cleanIp === '::ffff:127.0.0.1' || cleanIp === 'localhost') {
+    return { isLocked: false };
+  }
+
   const key = getLockoutKey(identity, ip);
   const record = loginAttempts.get(key);
   if (!record) return { isLocked: false };

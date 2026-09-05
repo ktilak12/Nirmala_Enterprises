@@ -42,14 +42,18 @@ export function createApp() {
    * (Section 45).
    */
   /**
-   * Login is rate limited strictly (max 5 failed attempts per 15 mins) to prevent brute-force attacks.
+   * Login is rate limited strictly for remote traffic, while skipping local admin testing.
    */
   const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    limit: 5, // 5 requests max per 15 minutes per IP
+    limit: 10,
+    skip: (req) => {
+      const ip = String(req.ip || req.headers['x-forwarded-for'] || '').trim();
+      return ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1' || ip.includes('127.0.0.1');
+    },
     standardHeaders: 'draft-7',
     legacyHeaders: false,
-    message: { success: false, message: 'Too many sign-in attempts from this IP. Please wait 15 minutes and try again.' },
+    message: { success: false, message: 'Too many sign-in attempts. Please wait a moment and try again.' },
   });
 
   const apiLimiter = rateLimit({
