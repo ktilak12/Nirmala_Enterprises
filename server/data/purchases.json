@@ -1,0 +1,42 @@
+[
+  {
+    "_id": "pur_001",
+    "receiptNumber": "PRC-2026-001",
+    "farmerId": "frm_001",
+    "farmerName": "Ramesh Chandra Sahu",
+    "commodity": "Paddy / Rice (Swarna MTU-7029)",
+    "grossWeight": 4250,
+    "tareWeight": 150,
+    "netWeight": 4100,
+    "moistureDeductionKg": 40,
+    "payableWeightKg": 4060,
+    "ratePerKg": 23.5,
+    "grossAmount": 95410,
+    "advanceDeduction": 25000,
+    "netPayable": 70410,
+    "bagCount": 82,
+    "qualityGrade": "Grade A",
+    "status": "COMPLETED",
+    "createdAt": "2026-02-25T14:30:00.000Z"
+  },
+  {
+    "_id": "pur_002",
+    "receiptNumber": "PRC-2026-002",
+    "farmerId": "frm_003",
+    "farmerName": "Bikash Kumar Meher",
+    "commodity": "Yellow Maize (Feed Quality Grade A)",
+    "grossWeight": 5800,
+    "tareWeight": 200,
+    "netWeight": 5600,
+    "moistureDeductionKg": 60,
+    "payableWeightKg": 5540,
+    "ratePerKg": 21.5,
+    "grossAmount": 119110,
+    "advanceDeduction": 30000,
+    "netPayable": 89110,
+    "bagCount": 112,
+    "qualityGrade": "Grade A",
+    "status": "COMPLETED",
+    "createdAt": "2026-02-27T16:00:00.000Z"
+  }
+]

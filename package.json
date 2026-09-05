@@ -1,0 +1,15 @@
+{
+  "name": "nirmala-enterprises",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "npm --prefix server run dev",
+    "start": "npm --prefix server start",
+    "seed": "npm --prefix server run seed",
+    "seed:demo": "npm --prefix server run seed:demo",
+    "verify": "npm --prefix server run verify",
+    "verify:acceptance": "npm --prefix server run verify:acceptance",
+    "recompute": "npm --prefix server run recompute",
+    "test:atomicity": "npm --prefix server run test:atomicity"
+  }
+}

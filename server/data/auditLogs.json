@@ -1,0 +1,23 @@
+[
+  {
+    "_id": "aud_001",
+    "action": "CREATE_SALE",
+    "actor": "System Administrator",
+    "summary": "Invoice INV-2026-001 created for Ramesh Chandra Sahu (₹17,279.36)",
+    "timestamp": "2026-02-24T11:30:00.000Z"
+  },
+  {
+    "_id": "aud_002",
+    "action": "PROCUREMENT_IN",
+    "actor": "Operations Manager",
+    "summary": "Paddy procurement PR-2026-001 from Ramesh Chandra Sahu (40.6 Qtl)",
+    "timestamp": "2026-02-25T14:30:00.000Z"
+  },
+  {
+    "_id": "aud_003",
+    "action": "DISBURSE_ADVANCE",
+    "actor": "System Administrator",
+    "summary": "Seed advance disbursed to Bikash Kumar Meher (₹60,000)",
+    "timestamp": "2026-01-20T14:30:00.000Z"
+  }
+]
