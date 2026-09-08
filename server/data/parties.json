@@ -1,0 +1,58 @@
+[
+  {
+    "_id": "pty_001",
+    "type": "CUSTOMER",
+    "name": "Sambalpur Rice Mills",
+    "companyName": "Sambalpur Agro Mills Pvt Ltd",
+    "phone": "9437011223",
+    "email": "procurement@sambalpurrice.com",
+    "gstin": "21AABCS1234F1Z5",
+    "city": "Sambalpur",
+    "address": "Industrial Area, Sambalpur",
+    "creditLimit": 500000,
+    "currentBalance": 45000,
+    "createdAt": "2026-01-15T10:00:00.000Z"
+  },
+  {
+    "_id": "pty_002",
+    "type": "SUPPLIER",
+    "name": "IFFCO Fertilizer Depot",
+    "companyName": "Indian Farmers Fertiliser Co-operative Ltd",
+    "phone": "9861055443",
+    "email": "bargarh@iffco.in",
+    "gstin": "21AAACI0234B1Z8",
+    "city": "Bargarh",
+    "address": "APMC Yard Godown 4",
+    "creditLimit": 1000000,
+    "currentBalance": 0,
+    "createdAt": "2026-01-18T11:30:00.000Z"
+  },
+  {
+    "_id": "pty_003",
+    "type": "SUPPLIER",
+    "name": "Pioneer Hi-Bred Seeds Depot",
+    "companyName": "Corteva Agriscience India Pvt Ltd",
+    "phone": "9437199882",
+    "email": "odisha.sales@pioneer.com",
+    "gstin": "21AABCP8891M1Z1",
+    "city": "Bargarh",
+    "address": "Main Road Agro Complex",
+    "creditLimit": 800000,
+    "currentBalance": 12500,
+    "createdAt": "2026-02-01T09:15:00.000Z"
+  },
+  {
+    "_id": "pty_004",
+    "type": "CUSTOMER",
+    "name": "Maa Samaleswari Cattle Feed",
+    "companyName": "Samaleswari Feeds & Flour Mills",
+    "phone": "9937044332",
+    "email": "orders@samaleswarifeeds.com",
+    "gstin": "21AAACS4412K1Z9",
+    "city": "Bargarh",
+    "address": "Bheden Road, Bargarh",
+    "creditLimit": 250000,
+    "currentBalance": 18400,
+    "createdAt": "2026-02-12T14:45:00.000Z"
+  }
+]
