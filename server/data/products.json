@@ -8,7 +8,7 @@
     "brand": "Pioneer Hi-Bred",
     "purchasePrice": 1850,
     "sellingPrice": 2100,
-    "currentStock": 145,
+    "currentStock": 147,
     "minStockAlert": 20,
     "description": "High-yielding drought-tolerant hybrid yellow maize seed (5 kg bag)."
   },
@@ -112,7 +112,7 @@
     "brand": "Odisha Mandi Procured",
     "purchasePrice": 2150,
     "sellingPrice": 2380,
-    "currentStock": 450,
+    "currentStock": 0,
     "minStockAlert": 50,
     "description": "Sun-dried clean yellow feed maize procured directly from Odisha farmers."
   },

@@ -26,25 +26,24 @@ export async function onRequest(context) {
     const username = (body.username || body.email || '').trim().toLowerCase();
     const password = String(body.password || '');
 
-    // Allow admin credentials or demo roles
+    // Allow only Super Admin credentials
     if (
-      username === 'admin@nirmalaenterprises.in' ||
-      username === 'admin' ||
-      username.includes('admin') ||
-      username.includes('manager') ||
-      password === 'Admin@12345' ||
-      password.length >= 4
+      (username === 'superadmin@nirmalaenterprises.in' ||
+        username === 'superadmin' ||
+        username === 'admin@nirmalaenterprises.in' ||
+        username === 'admin') &&
+      (password === 'admin123' || password === 'Admin@12345' || password.length >= 4)
     ) {
       return new Response(
         JSON.stringify({
           success: true,
-          token: 'cf-pages-jwt-token-demo-admin-12345',
+          token: 'cf-pages-jwt-token-demo-superadmin-12345',
           user: {
             id: '65f000000000000000000001',
-            name: 'System Administrator',
-            email: 'admin@nirmalaenterprises.in',
-            role: 'ADMIN',
-            roleLabel: 'Administrator',
+            name: 'Super Admin',
+            email: 'superadmin@nirmalaenterprises.in',
+            role: 'SUPER_ADMIN',
+            roleLabel: 'Super Administrator',
             permissions: ['*'],
             mustChangePassword: false,
             isActive: true
@@ -55,7 +54,7 @@ export async function onRequest(context) {
     }
 
     return new Response(
-      JSON.stringify({ success: false, message: 'Invalid email or password' }),
+      JSON.stringify({ success: false, message: 'Invalid credentials. Only the Super Admin is authorized to access the admin portal.' }),
       { status: 401, headers: corsHeaders }
     );
   }
@@ -66,10 +65,10 @@ export async function onRequest(context) {
         success: true,
         user: {
           id: '65f000000000000000000001',
-          name: 'System Administrator',
-          email: 'admin@nirmalaenterprises.in',
-          role: 'ADMIN',
-          roleLabel: 'Administrator',
+          name: 'Super Admin',
+          email: 'superadmin@nirmalaenterprises.in',
+          role: 'SUPER_ADMIN',
+          roleLabel: 'Super Administrator',
           permissions: ['*'],
           mustChangePassword: false,
           isActive: true
@@ -167,12 +166,38 @@ export async function onRequest(context) {
 
   // --- FARMERS ---
   if (path.startsWith('/api/farmers')) {
+    if (method === 'DELETE') {
+      const parts = path.split('/');
+      const farmerId = parts[parts.length - 1];
+      return new Response(
+        JSON.stringify({ success: true, message: `Farmer profile (${farmerId}) deleted / business closed successfully.` }),
+        { status: 200, headers: corsHeaders }
+      );
+    }
     const farmers = [
       { _id: 'frm_001', farmerCode: 'FARM-001', name: 'Ramesh Chandra Sahu', fatherName: 'Birendra Sahu', phone: '9861012345', village: 'Attabira', district: 'Bargarh', state: 'Odisha', landAcres: 12.5, primaryCrop: 'Paddy & Maize', outstandingAdvance: 0, totalProcuredQuintals: 185 },
       { _id: 'frm_002', farmerCode: 'FARM-002', name: 'Pradeep Mohapatra', fatherName: 'Jogendra Mohapatra', phone: '9437156789', village: 'Bheden', district: 'Bargarh', state: 'Odisha', landAcres: 8.0, primaryCrop: 'Paddy & Pulses', outstandingAdvance: 18000, totalProcuredQuintals: 120 },
       { _id: 'frm_003', farmerCode: 'FARM-003', name: 'Bikash Kumar Meher', fatherName: 'Surendra Meher', phone: '9937024680', village: 'Barpali', district: 'Bargarh', state: 'Odisha', landAcres: 15.0, primaryCrop: 'Paddy & Mustard', outstandingAdvance: 41200, totalProcuredQuintals: 240 }
     ];
     return new Response(JSON.stringify({ success: true, data: farmers }), { status: 200, headers: corsHeaders });
+  }
+
+  // --- PARTIES (SUPPLIERS & CUSTOMERS) ---
+  if (path.startsWith('/api/parties')) {
+    if (method === 'DELETE') {
+      const parts = path.split('/');
+      const partyId = parts[parts.length - 1];
+      return new Response(
+        JSON.stringify({ success: true, message: `Party (${partyId}) deleted successfully.` }),
+        { status: 200, headers: corsHeaders }
+      );
+    }
+    const parties = [
+      { _id: 'pty_001', type: 'CUSTOMER', name: 'Sambalpur Rice Mills', companyName: 'Sambalpur Agro Mills Pvt Ltd', phone: '9437011223', email: 'procurement@sambalpurrice.com', gstin: '21AABCS1234F1Z5', city: 'Sambalpur', address: 'Industrial Area, Sambalpur', creditLimit: 500000, currentBalance: 45000 },
+      { _id: 'pty_002', type: 'SUPPLIER', name: 'IFFCO Fertilizer Depot', companyName: 'Indian Farmers Fertiliser Co-operative Ltd', phone: '9861055443', email: 'bargarh@iffco.in', gstin: '21AAACI0234B1Z8', city: 'Bargarh', address: 'APMC Yard Godown 4', creditLimit: 1000000, currentBalance: 0 },
+      { _id: 'pty_003', type: 'SUPPLIER', name: 'Pioneer Hi-Bred Seeds Depot', companyName: 'Corteva Agriscience India Pvt Ltd', phone: '9437199882', email: 'odisha.sales@pioneer.com', gstin: '21AABCP8891M1Z1', city: 'Bargarh', address: 'Main Road Agro Complex', creditLimit: 800000, currentBalance: 12500 }
+    ];
+    return new Response(JSON.stringify({ success: true, data: parties }), { status: 200, headers: corsHeaders });
   }
 
   // --- MANDI RATES ---

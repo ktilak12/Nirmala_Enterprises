@@ -2,6 +2,12 @@ import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { whatsappGateway } from '../services/whatsappGateway.js';
+
+// Auto-initialize background WhatsApp Gateway socket
+whatsappGateway.initialize().catch(err => {
+  console.warn('[WA GATEWAY] Initial auto-start warning:', err.message);
+});
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -283,6 +289,79 @@ let farmers = loadFromFile('farmers.json', [
     outstandingAdvance: 85000,
     totalProcuredQuintals: 360,
     createdAt: '2026-02-10T16:20:00.000Z'
+  }
+]);
+
+let parties = loadFromFile('parties.json', [
+  {
+    _id: 'pty_001',
+    type: 'CUSTOMER',
+    name: 'Sambalpur Rice Mills',
+    companyName: 'Sambalpur Agro Mills Pvt Ltd',
+    phone: '9437011223',
+    email: 'procurement@sambalpurrice.com',
+    gstin: '21AABCS1234F1Z5',
+    city: 'Sambalpur',
+    address: 'Industrial Area, Sambalpur',
+    creditLimit: 500000,
+    currentBalance: 45000,
+    createdAt: '2026-01-15T10:00:00.000Z'
+  },
+  {
+    _id: 'pty_002',
+    type: 'SUPPLIER',
+    name: 'IFFCO Fertilizer Depot',
+    companyName: 'Indian Farmers Fertiliser Co-operative Ltd',
+    phone: '9861055443',
+    email: 'bargarh@iffco.in',
+    gstin: '21AAACI0234B1Z8',
+    city: 'Bargarh',
+    address: 'APMC Yard Godown 4',
+    creditLimit: 1000000,
+    currentBalance: 0,
+    createdAt: '2026-01-18T11:30:00.000Z'
+  },
+  {
+    _id: 'pty_003',
+    type: 'SUPPLIER',
+    name: 'Pioneer Hi-Bred Seeds Depot',
+    companyName: 'Corteva Agriscience India Pvt Ltd',
+    phone: '9437199882',
+    email: 'odisha.sales@pioneer.com',
+    gstin: '21AABCP8891M1Z1',
+    city: 'Bargarh',
+    address: 'Main Road Agro Complex',
+    creditLimit: 800000,
+    currentBalance: 12500,
+    createdAt: '2026-02-01T09:15:00.000Z'
+  },
+  {
+    _id: 'pty_004',
+    type: 'CUSTOMER',
+    name: 'Maa Samaleswari Cattle Feed',
+    companyName: 'Samaleswari Feeds & Flour Mills',
+    phone: '9937044332',
+    email: 'orders@samaleswarifeeds.com',
+    gstin: '21AAACS4412K1Z9',
+    city: 'Bargarh',
+    address: 'Bheden Road, Bargarh',
+    creditLimit: 250000,
+    currentBalance: 18400,
+    createdAt: '2026-02-12T14:45:00.000Z'
+  },
+  {
+    _id: 'pty_005',
+    type: 'SUPPLIER',
+    name: 'KRIBHCO Agro Supply Hub',
+    companyName: 'Krishak Bharati Cooperative Ltd',
+    phone: '9861077665',
+    email: 'sambalpur@kribhco.in',
+    gstin: '21AAACK5678D1Z2',
+    city: 'Sambalpur',
+    address: 'Godown No 12, APMC Yard',
+    creditLimit: 1200000,
+    currentBalance: 0,
+    createdAt: '2026-02-15T16:00:00.000Z'
   }
 ]);
 
@@ -1096,23 +1175,70 @@ mockRouter.post('/farmers/lookup-bills', (req, res) => {
   });
 });
 
-// --- PARTIES / CUSTOMERS ---
-mockRouter.get('/parties', (_req, res) => {
-  res.json({ success: true, data: farmers });
+// --- PARTIES / CUSTOMERS & SUPPLIERS ---
+mockRouter.get('/parties', (req, res) => {
+  const { type, role } = req.query;
+  let filtered = parties;
+  if (type && type !== 'ALL') {
+    filtered = filtered.filter(p => (p.type || '').toUpperCase() === type.toUpperCase());
+  }
+  if (role && role !== 'ALL') {
+    filtered = filtered.filter(p => (p.type || '').toUpperCase() === role.toUpperCase());
+  }
+  res.json({ success: true, data: filtered });
 });
 
 mockRouter.post('/parties', (req, res) => {
   const body = req.body;
   const newParty = {
     _id: 'pty_' + String(Date.now()).slice(-6),
+    type: (body.type || 'CUSTOMER').toUpperCase(),
     name: body.name || 'New Party',
+    companyName: body.companyName || '',
     phone: body.phone || '',
-    village: body.address || 'Bargarh',
-    district: body.city || 'Bargarh',
-    state: body.state || 'Odisha',
-    type: body.type || 'CUSTOMER'
+    email: body.email || '',
+    gstin: body.gstin || '',
+    city: body.city || 'Bargarh',
+    address: body.address || '',
+    creditLimit: Number(body.creditLimit || 100000),
+    currentBalance: Number(body.currentBalance || 0),
+    createdAt: new Date().toISOString()
   };
-  res.json({ success: true, data: newParty });
+  parties.unshift(newParty);
+  saveToFile('parties.json', parties);
+  auditLogs.unshift({
+    _id: 'aud_' + Date.now(),
+    action: 'CREATE_PARTY',
+    actor: 'Administrator',
+    summary: `Registered new ${newParty.type}: ${newParty.name} (${newParty.companyName || newParty.phone})`,
+    timestamp: new Date().toISOString()
+  });
+  saveToFile('auditLogs.json', auditLogs);
+  res.json({ success: true, data: newParty, message: 'Party registered successfully.' });
+});
+
+mockRouter.delete('/parties/:id', (req, res) => {
+  const { id } = req.params;
+  const index = parties.findIndex(p => p._id === id || p.phone === id);
+  if (index === -1) {
+    return res.status(404).json({ success: false, message: 'Party not found.' });
+  }
+  const deleted = parties[index];
+  parties.splice(index, 1);
+  saveToFile('parties.json', parties);
+  auditLogs.unshift({
+    _id: 'aud_' + Date.now(),
+    action: 'DELETE_PARTY',
+    actor: 'Administrator',
+    summary: `Deleted ${deleted.type || 'Party'} profile: ${deleted.name} (${deleted.companyName || deleted.phone})`,
+    timestamp: new Date().toISOString()
+  });
+  saveToFile('auditLogs.json', auditLogs);
+  res.json({
+    success: true,
+    message: `${deleted.type || 'Party'} "${deleted.name}" deleted successfully.`,
+    data: deleted
+  });
 });
 
 // --- SALES & POS BILLING ---
@@ -1210,46 +1336,293 @@ mockRouter.post('/sales', (req, res) => {
     timestamp: new Date().toISOString()
   });
 
+  // 100% Silent WhatsApp background delivery (zero clicks!)
+  whatsappGateway.sendSilentSaleAlerts(newSale, req.get('host'), req.protocol).catch(err => {
+    console.error('[WA GATEWAY] Auto-alert error on sale:', err.message);
+  });
+
   res.json({ success: true, data: newSale, message: 'Sale recorded and bill generated successfully.' });
 });
+
+// --- WHATSAPP & SMS PAYMENT NOTIFICATIONS ---
+function buildWhatsAppAlerts(sale, host = 'localhost:5000', protocol = 'http') {
+  const downloadUrl = `${protocol}://${host}/invoice/${sale.invoiceNo || sale._id}`;
+  const rawCustPhone = (sale.customerPhone || '').replace(/[^0-9]/g, '');
+  const targetCustomerPhone = rawCustPhone.length === 10 ? '91' + rawCustPhone : rawCustPhone;
+  const adminPhone = '917848956963';
+
+  const dateStr = new Date(sale.date || Date.now()).toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric'
+  });
+
+  const itemsList = (sale.items || []).map((it, idx) => {
+    const q = it.quantity || it.qty || 1;
+    const r = it.unitPrice || it.rate || 0;
+    const t = it.total || it.amount || (q * r);
+    return `${idx + 1}. *${it.productName || it.name || 'Agro Item'}*\n   ${q} ${it.unit || 'units'} × ₹${Number(r).toLocaleString('en-IN')} = *₹${Number(t).toLocaleString('en-IN')}*`;
+  }).join('\n');
+
+  const customerMessage = `🌾 *NIRMALA ENTERPRISES* 🌾\n` +
+    `_Agro Trading & Farmer Support Hub_\n` +
+    `━━━━━━━━━━━━━━━━━━━━━\n` +
+    `🧾 *TAX INVOICE & PAYMENT RECEIPT*\n` +
+    `*Invoice No:* ${sale.invoiceNo}\n` +
+    `*Date:* ${dateStr}\n` +
+    `*Customer:* ${sale.customerName}\n` +
+    (sale.customerPhone ? `*Phone:* ${sale.customerPhone}\n` : '') +
+    `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+    `📦 *PURCHASED ITEMS:*\n${itemsList || '1. Agro Inputs'}\n\n` +
+    `━━━━━━━━━━━━━━━━━━━━━\n` +
+    `*Subtotal:* ₹${Number(sale.subtotal || 0).toLocaleString('en-IN')}\n` +
+    (sale.tax > 0 || sale.taxTotal > 0 ? `*GST Tax:* ₹${Number(sale.tax || sale.taxTotal || 0).toLocaleString('en-IN')}\n` : '') +
+    (sale.discount > 0 ? `*Discount:* -₹${Number(sale.discount).toLocaleString('en-IN')}\n` : '') +
+    `💰 *GRAND TOTAL: ₹${Number(sale.grandTotal || sale.total || 0).toLocaleString('en-IN')}*\n` +
+    `💳 *Paid Amount:* ₹${Number(sale.paidAmount || sale.grandTotal || 0).toLocaleString('en-IN')} (${sale.paymentMode || 'CASH'})\n` +
+    (Number(sale.balanceDue || 0) > 0
+      ? `⚠️ *Balance Due:* ₹${Number(sale.balanceDue).toLocaleString('en-IN')}\n`
+      : `✅ *Payment Status: Fully Paid*\n`) +
+    `━━━━━━━━━━━━━━━━━━━━━\n` +
+    `📄 *Download / View Your Bill:*\n` +
+    `${downloadUrl}\n` +
+    `━━━━━━━━━━━━━━━━━━━━━\n` +
+    `🌱 _Thank you for choosing Nirmala Enterprises!_\n` +
+    `📞 *Support Helpline:* +91 94800 12345\n` +
+    `📍 APMC Yard, Bargarh, Odisha`;
+
+  const adminMessage = `🔔 *PAYMENT RECEIVED ALERT* 🔔\n` +
+    `*NIRMALA ENTERPRISES ERP*\n` +
+    `━━━━━━━━━━━━━━━━━━━━━\n` +
+    `📄 *Invoice No:* ${sale.invoiceNo}\n` +
+    `📅 *Date:* ${dateStr}\n` +
+    `👤 *Customer:* ${sale.customerName} (${sale.customerPhone || 'Walk-in'})\n` +
+    `💰 *Amount Paid:* ₹${Number(sale.paidAmount || sale.grandTotal || 0).toLocaleString('en-IN')}\n` +
+    `💳 *Payment Mode:* ${sale.paymentMode || 'CASH'} (${sale.paymentStatus || 'PAID'})\n` +
+    `💵 *Total Bill:* ₹${Number(sale.grandTotal || sale.total || 0).toLocaleString('en-IN')}\n` +
+    `⚖️ *Balance Due:* ₹${Number(sale.balanceDue || 0).toLocaleString('en-IN')}\n` +
+    `━━━━━━━━━━━━━━━━━━━━━\n` +
+    `📄 *View / Download Invoice:*\n` +
+    `${downloadUrl}\n` +
+    `━━━━━━━━━━━━━━━━━━━━━\n` +
+    `_Super Admin Alert (7848956963)_`;
+
+  return {
+    invoiceNo: sale.invoiceNo,
+    downloadUrl,
+    customer: {
+      phone: targetCustomerPhone,
+      message: customerMessage,
+      whatsappUrl: targetCustomerPhone ? `https://api.whatsapp.com/send?phone=${targetCustomerPhone}&text=${encodeURIComponent(customerMessage)}` : null,
+      waMeUrl: targetCustomerPhone ? `https://wa.me/${targetCustomerPhone}?text=${encodeURIComponent(customerMessage)}` : null
+    },
+    admin: {
+      phone: adminPhone,
+      message: adminMessage,
+      whatsappUrl: `https://api.whatsapp.com/send?phone=${adminPhone}&text=${encodeURIComponent(adminMessage)}`,
+      waMeUrl: `https://wa.me/${adminPhone}?text=${encodeURIComponent(adminMessage)}`
+    }
+  };
+}
 
 mockRouter.get('/sales/:id/whatsapp', (req, res) => {
   const { id } = req.params;
   const sale = sales.find(s => s._id === id || s.invoiceNo === id || s.invoiceNumber === id);
   if (!sale) return res.status(404).json({ success: false, message: 'Invoice not found.' });
 
-  const itemsList = sale.items.map((it, idx) => `${idx + 1}. *${it.name}* - ${it.qty} ${it.unit || 'unit'} @ ₹${it.rate} = ₹${it.amount}`).join('\n');
-  const message = `🌾 *NIRMALA ENTERPRISES - TAX INVOICE*\n` +
-    `--------------------------------------\n` +
-    `📄 *Invoice No:* ${sale.invoiceNo}\n` +
-    `📅 *Date:* ${new Date(sale.date).toLocaleDateString('en-IN')}\n` +
-    `👤 *Customer:* ${sale.customerName}\n` +
-    `📱 *Phone:* ${sale.customerPhone || 'N/A'}\n\n` +
-    `📦 *Purchased Items:*\n${itemsList}\n\n` +
-    `--------------------------------------\n` +
-    `💵 *Subtotal:* ₹${sale.subtotal.toLocaleString('en-IN')}\n` +
-    `✂️ *Discount:* ₹${sale.discount.toLocaleString('en-IN')}\n` +
-    `🏛️ *GST (12%):* ₹${sale.tax.toLocaleString('en-IN')}\n` +
-    `💰 *Grand Total:* ₹${sale.grandTotal.toLocaleString('en-IN')}\n` +
-    `💳 *Paid Amount:* ₹${sale.paidAmount.toLocaleString('en-IN')}\n` +
-    `⚖️ *Balance Due:* ₹${sale.balanceDue.toLocaleString('en-IN')}\n` +
-    `💳 *Payment Mode:* ${sale.paymentMode} (${sale.paymentStatus})\n\n` +
-    `*Bargarh, Odisha*\n` +
-    `_Thank you for doing business with Nirmala Enterprises!_`;
+  const alerts = buildWhatsAppAlerts(sale, req.get('host'), req.protocol);
+  res.json({
+    success: true,
+    data: alerts
+  });
+});
 
-  const phone = (sale.customerPhone || '').replace(/[^0-9]/g, '');
-  const targetPhone = phone.length === 10 ? '91' + phone : phone;
-  const whatsappUrl = `https://api.whatsapp.com/send?phone=${targetPhone}&text=${encodeURIComponent(message)}`;
+// Record additional payment against existing invoice
+mockRouter.post('/sales/:id/payments', (req, res) => {
+  const { id } = req.params;
+  const sale = sales.find(s => s._id === id || s.invoiceNo === id || s.invoiceNumber === id);
+  if (!sale) return res.status(404).json({ success: false, message: 'Invoice not found.' });
+
+  const amount = Number(req.body.amount || 0);
+  if (amount <= 0) return res.status(400).json({ success: false, message: 'Payment amount must be greater than zero.' });
+
+  const newPaid = (sale.paidAmount || 0) + amount;
+  sale.paidAmount = newPaid;
+  sale.balanceDue = Math.max(0, (sale.grandTotal || sale.total || 0) - newPaid);
+  sale.paymentStatus = (sale.balanceDue <= 0) ? 'PAID' : 'PARTIAL';
+  if (req.body.paymentMode || req.body.method) {
+    sale.paymentMode = req.body.paymentMode || req.body.method;
+  }
+
+  if (!sale.payments) sale.payments = [];
+  sale.payments.push({
+    amount,
+    date: new Date().toISOString(),
+    method: sale.paymentMode,
+    reference: req.body.reference || ''
+  });
+
+  saveToFile('sales.json', sales);
+
+  const alerts = buildWhatsAppAlerts(sale, req.get('host'), req.protocol);
+
+  auditLogs.unshift({
+    _id: 'aud_' + Date.now(),
+    action: 'PAYMENT_RECEIVED',
+    actor: 'Cashier / Admin',
+    summary: `Payment of ₹${amount.toLocaleString('en-IN')} received for ${sale.invoiceNo} (${sale.customerName}) - Alert ready for Super Admin (7848956963)`,
+    timestamp: new Date().toISOString()
+  });
+
+  // 100% Silent WhatsApp background delivery on payment recording
+  whatsappGateway.sendSilentSaleAlerts(sale, req.get('host'), req.protocol).catch(err => {
+    console.error('[WA GATEWAY] Auto-alert error on payment:', err.message);
+  });
 
   res.json({
     success: true,
-    data: {
-      invoiceNo: sale.invoiceNo,
-      phone: targetPhone,
-      message,
-      whatsappUrl
-    }
+    data: sale,
+    alerts,
+    message: 'Payment recorded successfully.'
   });
+});
+
+// --- WHATSAPP GATEWAY ENDPOINTS ---
+mockRouter.get('/whatsapp/status', (_req, res) => {
+  res.json(whatsappGateway.getStatus());
+});
+
+mockRouter.post('/whatsapp/settings', (req, res) => {
+  const updated = whatsappGateway.updateSettings(req.body);
+  res.json({ success: true, settings: updated, message: 'WhatsApp Gateway settings updated.' });
+});
+
+mockRouter.post('/whatsapp/disconnect', async (_req, res) => {
+  const result = await whatsappGateway.disconnect();
+  res.json(result);
+});
+
+mockRouter.get('/whatsapp/outbox', (_req, res) => {
+  res.json({ success: true, data: whatsappGateway.getOutbox() });
+});
+
+mockRouter.post('/whatsapp/test', async (req, res) => {
+  const status = whatsappGateway.getStatus();
+  const targetPhone = req.body.phone || status.adminPhone || '7848956963';
+  const testMsg = `🌾 *NIRMALA ENTERPRISES ERP* 🌾\n━━━━━━━━━━━━━━━━━━━━━\n✅ *WhatsApp Gateway Test Message*\nConnected device verified.\nTime: ${new Date().toLocaleTimeString('en-IN')}\nSuper Admin: ${targetPhone}\n━━━━━━━━━━━━━━━━━━━━━\n_Automated Background Gateway Active_`;
+  const result = await whatsappGateway.sendBackgroundMessage(targetPhone, testMsg);
+  res.json({ success: result.success, result, targetPhone });
+});
+
+// Public Invoice View/Download endpoints
+mockRouter.get('/public/invoices/:id', (req, res) => {
+  const { id } = req.params;
+  const sale = sales.find(s => s._id === id || s.invoiceNo === id || s.invoiceNumber === id);
+  if (!sale) return res.status(404).json({ success: false, message: 'Invoice not found.' });
+  res.json({ success: true, data: sale });
+});
+
+mockRouter.get('/public/invoices/:id/download', (req, res) => {
+  const { id } = req.params;
+  const sale = sales.find(s => s._id === id || s.invoiceNo === id || s.invoiceNumber === id);
+  if (!sale) return res.status(404).send('<h2>Invoice Not Found</h2>');
+
+  const dateStr = new Date(sale.date || Date.now()).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  const itemsHtml = (sale.items || []).map((it, idx) => `
+    <tr>
+      <td style="padding:8px;border:1px solid #ddd;text-align:center;">${idx + 1}</td>
+      <td style="padding:8px;border:1px solid #ddd;"><strong>${it.productName || it.name}</strong></td>
+      <td style="padding:8px;border:1px solid #ddd;text-align:center;">${it.quantity || it.qty || 1} ${it.unit || 'Bags'}</td>
+      <td style="padding:8px;border:1px solid #ddd;text-align:right;">₹${Number(it.unitPrice || it.rate || 0).toLocaleString('en-IN')}</td>
+      <td style="padding:8px;border:1px solid #ddd;text-align:right;"><strong>₹${Number(it.total || it.amount || 0).toLocaleString('en-IN')}</strong></td>
+    </tr>
+  `).join('');
+
+  res.send(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Invoice ${sale.invoiceNo} - Nirmala Enterprises</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f9f9f9; padding: 20px; color: #333; }
+    .invoice-card { max-width: 780px; margin: 0 auto; background: #fff; border: 1px solid #ccc; border-radius: 8px; padding: 30px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+    .header { text-align: center; border-bottom: 2px solid #00450d; padding-bottom: 12px; margin-bottom: 20px; }
+    .header h1 { margin: 0; color: #00450d; font-size: 26px; }
+    .header p { margin: 3px 0; font-size: 13px; color: #666; }
+    .meta-grid { display: flex; justify-content: space-between; margin-bottom: 20px; font-size: 13px; }
+    .table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 13px; }
+    .table th { background: #f0fdf4; border: 1px solid #ddd; padding: 8px; color: #00450d; }
+    .totals { margin-left: auto; width: 300px; font-size: 13px; }
+    .totals div { display: flex; justify-content: space-between; padding: 4px 0; }
+    .grand-total { font-size: 16px; font-weight: bold; color: #00450d; border-top: 2px solid #00450d; padding-top: 6px; }
+    .footer { margin-top: 30px; border-top: 1px solid #eee; padding-top: 15px; font-size: 11px; color: #777; display: flex; justify-content: space-between; align-items: flex-end; }
+    .no-print { text-align: center; margin-bottom: 20px; }
+    .btn { background: #00450d; color: #fff; border: none; padding: 10px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; text-decoration: none; font-size: 13px; }
+    @media print { .no-print { display: none; } body { background: #fff; padding: 0; } .invoice-card { border: none; box-shadow: none; padding: 0; } }
+  </style>
+</head>
+<body>
+  <div class="no-print">
+    <button class="btn" onclick="window.print()">🖨️ Print / Save as PDF</button>
+  </div>
+  <div class="invoice-card">
+    <div class="header">
+      <div style="font-size:11px;font-weight:bold;color:#777;letter-spacing:1px;">TAX INVOICE</div>
+      <h1>NIRMALA ENTERPRISES</h1>
+      <p>Agro Trading & Farmer Support Hub</p>
+      <p>Shop No. 42 & 43, Main APMC Yard, Bargarh, Odisha - 580007 | Ph: +91 94800 12345</p>
+      <p><strong>GSTIN:</strong> 21AABCN1092M1Z4 | <strong>APMC Lic:</strong> APMC/BGR/2026/89 | <strong>State Code:</strong> 21 (Odisha)</p>
+    </div>
+    <div class="meta-grid">
+      <div>
+        <div style="font-size:11px;color:#777;font-weight:bold;text-transform:uppercase;">Billed To:</div>
+        <strong style="font-size:15px;">${sale.customerName}</strong><br>
+        Phone: ${sale.customerPhone || 'N/A'}<br>
+        Address: ${sale.customerAddress || 'Bargarh, Odisha'}
+      </div>
+      <div style="text-align:right;">
+        <strong>Invoice No:</strong> ${sale.invoiceNo}<br>
+        <strong>Date:</strong> ${dateStr}<br>
+        <strong>Payment Mode:</strong> ${sale.paymentMode || 'CASH'}<br>
+        <strong>Status:</strong> <span style="font-weight:bold;color:${sale.paymentStatus === 'PAID' ? '#166534' : '#991b1b'}">${sale.paymentStatus || 'PAID'}</span>
+      </div>
+    </div>
+    <table class="table">
+      <thead>
+        <tr>
+          <th style="width:40px;">#</th>
+          <th style="text-align:left;">Item Description</th>
+          <th style="width:100px;">Quantity</th>
+          <th style="width:100px;text-align:right;">Rate (₹)</th>
+          <th style="width:110px;text-align:right;">Amount (₹)</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${itemsHtml}
+      </tbody>
+    </table>
+    <div class="totals">
+      <div><span>Subtotal:</span> <span>₹${Number(sale.subtotal || 0).toLocaleString('en-IN')}</span></div>
+      ${sale.tax > 0 ? `<div><span>GST:</span> <span>₹${Number(sale.tax).toLocaleString('en-IN')}</span></div>` : ''}
+      ${sale.discount > 0 ? `<div><span>Discount:</span> <span>-₹${Number(sale.discount).toLocaleString('en-IN')}</span></div>` : ''}
+      <div class="grand-total"><span>Grand Total:</span> <span>₹${Number(sale.grandTotal || sale.total || 0).toLocaleString('en-IN')}</span></div>
+      <div><span>Amount Paid:</span> <span>₹${Number(sale.paidAmount || sale.grandTotal || 0).toLocaleString('en-IN')}</span></div>
+      ${Number(sale.balanceDue || 0) > 0 ? `<div style="color:#b91c1c;font-weight:bold;"><span>Balance Due:</span> <span>₹${Number(sale.balanceDue).toLocaleString('en-IN')}</span></div>` : ''}
+    </div>
+    <div class="footer">
+      <div>
+        <strong>Terms & Conditions:</strong><br>
+        1. Goods once sold will not be taken back.<br>
+        2. Subject to Bargarh Jurisdiction only. E.&O.E.
+      </div>
+      <div style="text-align:center;">
+        <strong>For NIRMALA ENTERPRISES</strong><br><br><br>
+        <span style="border-top:1px solid #aaa;padding-top:2px;">Authorized Signatory</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>`);
 });
 
 mockRouter.get('/farmers/:id/ledger', (req, res) => {
@@ -1359,49 +1732,7 @@ mockRouter.post('/purchases', (req, res) => {
   res.json({ success: true, data: newPurchase, message: 'Procurement recorded successfully.' });
 });
 
-// --- LIVE GOLD BULLION RATES (ODISHA APMC BENCHMARK) ---
-const defaultGoldRates = {
-  rate24kPerGram: 7280,
-  rate22kPerGram: 6675,
-  rate18kPerGram: 5460,
-  rate24kPer10g: 72800,
-  rate22kPer10g: 66750,
-  silverPerKg: 86500,
-  changeToday: '+₹45 (+0.68%)',
-  trend: 'UP',
-  marketSource: 'Odisha Bullion / Bargarh APMC Lending Benchmark',
-  lastUpdated: new Date().toISOString()
-};
-
-let goldRates = loadFromFile('goldRates.json', defaultGoldRates);
-
-mockRouter.get('/gold-rates', (_req, res) => {
-  res.json({ success: true, data: goldRates });
-});
-
-mockRouter.post('/gold-rates', (req, res) => {
-  const body = req.body;
-  if (body.rate22kPerGram) goldRates.rate22kPerGram = Number(body.rate22kPerGram);
-  if (body.rate24kPerGram) goldRates.rate24kPerGram = Number(body.rate24kPerGram);
-  if (body.rate18kPerGram) goldRates.rate18kPerGram = Number(body.rate18kPerGram);
-  goldRates.rate24kPer10g = (goldRates.rate24kPerGram || 7280) * 10;
-  goldRates.rate22kPer10g = (goldRates.rate22kPerGram || 6675) * 10;
-  if (body.silverPerKg) goldRates.silverPerKg = Number(body.silverPerKg);
-  goldRates.lastUpdated = new Date().toISOString();
-  saveToFile('goldRates.json', goldRates);
-
-  auditLogs.unshift({
-    _id: 'aud_' + Date.now(),
-    action: 'UPDATE_GOLD_RATE',
-    actor: 'Administrator',
-    summary: `Updated APMC Gold Lending Benchmark: 22K @ ₹${goldRates.rate22kPerGram}/g, 24K @ ₹${goldRates.rate24kPerGram}/g`,
-    timestamp: new Date().toISOString()
-  });
-
-  res.json({ success: true, data: goldRates, message: 'Live gold lending rates updated successfully.' });
-});
-
-// --- ADVANCED LOANS, FARMER ADVANCES & GOLD COLLATERAL ---
+// --- ADVANCED LOANS, FARMER ADVANCES & COLLATERAL ---
 mockRouter.get('/loans', (_req, res) => {
   const now = new Date();
   
@@ -1640,34 +1971,192 @@ mockRouter.get('/audit', (_req, res) => {
 });
 
 
-// --- PERMANENT RECORD RETENTION (NO DELETION POLICY) ---
-mockRouter.delete('/farmers/:id', (_req, res) => {
-  res.status(403).json({
-    success: false,
-    message: 'Policy Enforcement: Farmer profiles cannot be deleted. Permanent records are required for statutory APMC and agricultural compliance.'
+// --- PROFILE DELETION & CLOSING BUSINESS ---
+mockRouter.delete('/farmers/:id', (req, res) => {
+  const { id } = req.params;
+  const index = farmers.findIndex(f => f._id === id || f.phone === id || f.farmerCode === id);
+  if (index === -1) {
+    return res.status(404).json({ success: false, message: 'Farmer not found.' });
+  }
+  const deletedFarmer = farmers[index];
+  farmers.splice(index, 1);
+  saveToFile('farmers.json', farmers);
+  auditLogs.unshift({
+    _id: 'aud_' + Date.now(),
+    action: 'DELETE_FARMER',
+    actor: 'Administrator',
+    summary: `Closed business & deleted farmer profile: ${deletedFarmer.name} (${deletedFarmer.farmerCode || id}) from ${deletedFarmer.village || 'Bargarh'}`,
+    timestamp: new Date().toISOString()
+  });
+  saveToFile('auditLogs.json', auditLogs);
+  res.json({
+    success: true,
+    message: `Farmer "${deletedFarmer.name}" profile closed and deleted successfully.`,
+    data: deletedFarmer
   });
 });
 
-mockRouter.delete('/loans/:id', (_req, res) => {
-  res.status(403).json({
-    success: false,
-    message: 'Policy Enforcement: Loan records cannot be deleted. Disbursed advances must be marked as Closed or Written Off with audit logging.'
+// --- TRANSACTION DELETION ENDPOINTS ---
+const deleteSaleHandler = (req, res) => {
+  const id = req.params.id;
+  const index = sales.findIndex(s => s._id === id || s.invoiceNo === id || s.invoiceNumber === id);
+  if (index === -1) {
+    return res.status(404).json({ success: false, message: `Sales invoice ${id} not found.` });
+  }
+
+  const deleted = sales[index];
+
+  // 1. Restore product inventory stocks
+  if (Array.isArray(deleted.items)) {
+    deleted.items.forEach(item => {
+      const itemQty = Number(item.qty || item.quantity || 0);
+      if (itemQty > 0) {
+        const prod = products.find(p => p._id === item.productId || p._id === item.id || p.productCode === item.productCode || p.name === item.name || p.name === item.productName);
+        if (prod) {
+          prod.currentStock = Math.max(0, Number(prod.currentStock || 0) + itemQty);
+        }
+      }
+    });
+    saveToFile('products.json', products);
+  }
+
+  // 2. Adjust customer / party ledger balance
+  const netDue = Number(deleted.balanceDue || 0);
+  if (deleted.customerId || deleted.partyId) {
+    const party = parties.find(p => p._id === (deleted.customerId || deleted.partyId));
+    if (party) {
+      party.outstandingBalance = Math.max(0, Number(party.outstandingBalance || 0) - netDue);
+      saveToFile('parties.json', parties);
+    }
+  }
+
+  // 3. Remove sale record
+  sales.splice(index, 1);
+  saveToFile('sales.json', sales);
+
+  // 4. Audit Log
+  auditLogs.unshift({
+    _id: `aud_${Date.now()}`,
+    action: 'DELETE_SALE_INVOICE',
+    timestamp: new Date().toISOString(),
+    user: 'Administrator',
+    role: 'ADMIN',
+    summary: `Deleted Sales Invoice: ${deleted.invoiceNo || id} (Amount: ₹${deleted.grandTotal || deleted.totalAmount || 0}). Stocks & balance restored.`,
+    ip: req.ip || '127.0.0.1'
   });
+  saveToFile('auditLogs.json', auditLogs);
+
+  res.json({
+    success: true,
+    message: `Sales Invoice "${deleted.invoiceNo || id}" deleted successfully. Product stocks and party balances have been restored.`,
+    data: deleted
+  });
+};
+
+const deletePurchaseHandler = (req, res) => {
+  const id = req.params.id;
+  const index = purchases.findIndex(p => p._id === id || p.purchaseNo === id || p.invoiceNumber === id);
+  if (index === -1) {
+    return res.status(404).json({ success: false, message: `Procurement record ${id} not found.` });
+  }
+
+  const deleted = purchases[index];
+
+  // 1. Revert product stock if applicable
+  if (deleted.commodity) {
+    const prod = products.find(p => p.name && p.name.toLowerCase().includes(deleted.commodity.toLowerCase()));
+    if (prod && deleted.netWeight) {
+      const netKg = Number(deleted.netWeight || 0);
+      prod.currentStock = Math.max(0, Number(prod.currentStock || 0) - netKg);
+      saveToFile('products.json', products);
+    }
+  }
+
+  // 2. Remove purchase record
+  purchases.splice(index, 1);
+  saveToFile('purchases.json', purchases);
+
+  // 3. Audit Log
+  auditLogs.unshift({
+    _id: `aud_${Date.now()}`,
+    action: 'DELETE_PURCHASE_BILL',
+    timestamp: new Date().toISOString(),
+    user: 'Administrator',
+    role: 'ADMIN',
+    summary: `Deleted Procurement Entry: ${deleted.purchaseNo || id} (${deleted.commodity || 'Grain'}, Seller: ${deleted.sellerName || 'Farmer'}).`,
+    ip: req.ip || '127.0.0.1'
+  });
+  saveToFile('auditLogs.json', auditLogs);
+
+  res.json({
+    success: true,
+    message: `Procurement transaction "${deleted.purchaseNo || id}" deleted successfully.`,
+    data: deleted
+  });
+};
+
+const deleteLoanHandler = (req, res) => {
+  const id = req.params.id;
+  const index = loans.findIndex(l => l._id === id || l.loanNo === id || l.loanNumber === id);
+  if (index === -1) {
+    return res.status(404).json({ success: false, message: `Loan/Advance record ${id} not found.` });
+  }
+
+  const deleted = loans[index];
+
+  // 1. Revert farmer advance balance
+  if (deleted.farmerId) {
+    const farmer = farmers.find(f => f._id === deleted.farmerId);
+    if (farmer) {
+      const due = Number(deleted.outstandingBalance !== undefined ? deleted.outstandingBalance : (deleted.principalAmount || deleted.amount || 0));
+      farmer.outstandingAdvance = Math.max(0, Number(farmer.outstandingAdvance || 0) - due);
+      saveToFile('farmers.json', farmers);
+    }
+  }
+
+  // 2. Remove loan record
+  loans.splice(index, 1);
+  saveToFile('loans.json', loans);
+
+  // 3. Audit Log
+  auditLogs.unshift({
+    _id: `aud_${Date.now()}`,
+    action: 'DELETE_FARMER_ADVANCE',
+    timestamp: new Date().toISOString(),
+    user: 'Administrator',
+    role: 'ADMIN',
+    summary: `Deleted Farmer Loan/Advance: ${deleted.loanNo || id} (Borrower: ${deleted.farmerName || 'Farmer'}, Principal: ₹${deleted.principalAmount || deleted.amount || 0}).`,
+    ip: req.ip || '127.0.0.1'
+  });
+  saveToFile('auditLogs.json', auditLogs);
+
+  res.json({
+    success: true,
+    message: `Farmer advance transaction "${deleted.loanNo || id}" deleted successfully.`,
+    data: deleted
+  });
+};
+
+mockRouter.delete('/sales/:id', deleteSaleHandler);
+mockRouter.delete('/invoices/:id', deleteSaleHandler);
+mockRouter.delete('/purchases/:id', deletePurchaseHandler);
+mockRouter.delete('/procurement/:id', deletePurchaseHandler);
+mockRouter.delete('/loans/:id', deleteLoanHandler);
+mockRouter.delete('/lending/:id', deleteLoanHandler);
+mockRouter.delete('/transactions/:id', (req, res) => {
+  const id = req.params.id;
+  if (sales.some(s => s._id === id || s.invoiceNo === id || s.invoiceNumber === id)) {
+    return deleteSaleHandler(req, res);
+  }
+  if (purchases.some(p => p._id === id || p.purchaseNo === id || p.invoiceNumber === id)) {
+    return deletePurchaseHandler(req, res);
+  }
+  if (loans.some(l => l._id === id || l.loanNo === id || l.loanNumber === id)) {
+    return deleteLoanHandler(req, res);
+  }
+  res.status(404).json({ success: false, message: `Transaction ${id} not found.` });
 });
 
-mockRouter.delete('/sales/:id', (_req, res) => {
-  res.status(403).json({
-    success: false,
-    message: 'Policy Enforcement: Sales invoices cannot be deleted once created for GST audit compliance.'
-  });
-});
-
-mockRouter.delete('/purchases/:id', (_req, res) => {
-  res.status(403).json({
-    success: false,
-    message: 'Policy Enforcement: Procurement records cannot be deleted for mandi weighment audit compliance.'
-  });
-});
 
 // --- CSV / EXCEL TRANSACTION EXPORT ENGINE ---
 mockRouter.get('/export/transactions', (_req, res) => {
@@ -1999,3 +2488,21 @@ mockRouter.get('/farmers/:id/export-csv', (req, res) => {
   res.setHeader('Content-Disposition', `attachment; filename="Passbook_${(farmer.name || 'Farmer').replace(/\s+/g, '_')}_${farmer.farmerCode || 'FARM'}.csv"`);
   res.send('\uFEFF' + csvContent);
 });
+
+// Single Super Admin User Endpoint
+mockRouter.get('/users', (_req, res) => {
+  res.json({
+    rows: [
+      {
+        _id: '65f000000000000000000001',
+        name: 'Super Admin',
+        email: 'superadmin@nirmalaenterprises.in',
+        role: 'SUPER_ADMIN',
+        roleLabel: 'Super Administrator',
+        isActive: true,
+      },
+    ],
+    roles: [{ value: 'SUPER_ADMIN', label: 'Super Administrator' }],
+  });
+});
+
