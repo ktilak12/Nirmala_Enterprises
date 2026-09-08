@@ -3,11 +3,20 @@ node_modules/
 server/node_modules/
 */node_modules/
 
-# Environment variables
+# Environment variables & secrets
 .env
 .env.local
 .env.*.local
 server/.env
+
+# WhatsApp Gateway auth sessions & local message outboxes
+server/data/whatsapp_session/
+server/data/whatsapp_outbox.json
+server/data/whatsapp_settings.json
+
+# Scratch files & temporary backups
+scratch*
+*.bak*
 
 # Logs
 logs
@@ -26,4 +35,3 @@ ehthumbs.db
 .vscode/
 .system_generated/
 .wrangler/
-
