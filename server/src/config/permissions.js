@@ -9,6 +9,7 @@
  */
 
 export const ROLES = Object.freeze({
+  SUPER_ADMIN: 'SUPER_ADMIN',
   ADMIN: 'ADMIN',
   MANAGER: 'MANAGER',
   ACCOUNTANT: 'ACCOUNTANT',
@@ -17,6 +18,7 @@ export const ROLES = Object.freeze({
 });
 
 export const ROLE_LABELS = Object.freeze({
+  SUPER_ADMIN: 'Super Administrator',
   ADMIN: 'Administrator',
   MANAGER: 'Manager',
   ACCOUNTANT: 'Accountant',
@@ -53,6 +55,7 @@ const OPERATIONAL_REPORTS = ['reports:read', 'exports:generate'];
  * described in Section 37.
  */
 const MATRIX = {
+  [ROLES.SUPER_ADMIN]: ['*'],
   [ROLES.ADMIN]: ['*'],
 
   [ROLES.MANAGER]: [
@@ -122,6 +125,7 @@ export function permissionsForRole(role) {
 }
 
 export function roleHasPermission(role, permission) {
+  if (role === 'SUPER_ADMIN' || role === 'ADMIN') return true;
   const granted = permissionsForRole(role);
   return granted.includes('*') || granted.includes(permission);
 }

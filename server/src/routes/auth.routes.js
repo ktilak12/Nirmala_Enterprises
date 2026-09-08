@@ -14,12 +14,12 @@ export const authRouter = Router();
  */
 const BCRYPT_HASH_ADMIN123 = '$2b$12$23EXrkfxWSs7x.IPvxw7F.N1YciqWMxpYZaBQIHuwhxtCn3a5zFsa';
 const BCRYPT_HASH_ADMIN_SPECIAL = '$2b$12$omt59gDq7QVT19ElYng5fuzKeWwzhFW30tbVgWH4Fm39bKHJntm6a';
-const BCRYPT_HASH_MGR123 = '$2b$12$Ks9NgvDb2xUQ.W688/N8.eL8ChLNFuUH1XWF8knIRlANcopP27Y42';
 
 const DEMO_ROLES = {
-  admin: { role: 'ADMIN', name: 'System Administrator', email: 'admin@nirmalaenterprises.in', hashes: [BCRYPT_HASH_ADMIN123, BCRYPT_HASH_ADMIN_SPECIAL] },
-  'admin@nirmalaenterprises.in': { role: 'ADMIN', name: 'System Administrator', email: 'admin@nirmalaenterprises.in', hashes: [BCRYPT_HASH_ADMIN123, BCRYPT_HASH_ADMIN_SPECIAL] },
-  manager: { role: 'MANAGER', name: 'Operations Manager', email: 'manager@nirmalaenterprises.in', hashes: [BCRYPT_HASH_MGR123, BCRYPT_HASH_ADMIN_SPECIAL] },
+  superadmin: { role: 'SUPER_ADMIN', name: 'Super Admin', email: 'superadmin@nirmalaenterprises.in', hashes: [BCRYPT_HASH_ADMIN123, BCRYPT_HASH_ADMIN_SPECIAL] },
+  'superadmin@nirmalaenterprises.in': { role: 'SUPER_ADMIN', name: 'Super Admin', email: 'superadmin@nirmalaenterprises.in', hashes: [BCRYPT_HASH_ADMIN123, BCRYPT_HASH_ADMIN_SPECIAL] },
+  admin: { role: 'SUPER_ADMIN', name: 'Super Admin', email: 'superadmin@nirmalaenterprises.in', hashes: [BCRYPT_HASH_ADMIN123, BCRYPT_HASH_ADMIN_SPECIAL] },
+  'admin@nirmalaenterprises.in': { role: 'SUPER_ADMIN', name: 'Super Admin', email: 'superadmin@nirmalaenterprises.in', hashes: [BCRYPT_HASH_ADMIN123, BCRYPT_HASH_ADMIN_SPECIAL] },
 };
 
 authRouter.post(
@@ -41,12 +41,18 @@ authRouter.post(
     // 2. Try DB login service first
     try {
       const result = await login({ email: username, password, req });
-      const token = signToken({ _id: result.user._id, role: result.user.role });
+      if (result.user.role !== 'SUPER_ADMIN' && result.user.role !== 'ADMIN') {
+        return res.status(403).json({
+          success: false,
+          message: 'Access restricted: Only the Super Admin is authorized to access the admin portal.',
+        });
+      }
+      const token = signToken({ _id: result.user._id, role: 'SUPER_ADMIN' });
       resetLoginAttempts(username, clientIp);
       return res.json({
         success: true,
         token,
-        user: shapeUser(result.user, result.permissions),
+        user: shapeUser({ ...result.user, role: 'SUPER_ADMIN' }, ['*']),
       });
     } catch (err) {
       if (err.status === 429 || (err.message && err.message.includes('locked'))) {
@@ -94,7 +100,7 @@ authRouter.post(
 
     return res.status(401).json({
       success: false,
-      message: 'Invalid email or password.',
+      message: 'Invalid email or password. Only Super Admin credentials are authorized.',
     });
   }),
 );
@@ -127,14 +133,15 @@ authRouter.post(
  * `passwordHash` - the field is `select: false` and stays that way.
  */
 export function shapeUser(user, permissions = []) {
+  const role = user.role || 'SUPER_ADMIN';
   return {
     id: String(user._id),
-    name: user.name,
-    email: user.email,
+    name: user.name || 'Super Admin',
+    email: user.email || 'superadmin@nirmalaenterprises.in',
     phone: user.phone ?? '',
-    role: user.role,
-    roleLabel: ROLE_LABELS[user.role] ?? user.role,
-    permissions,
+    role,
+    roleLabel: ROLE_LABELS[role] ?? 'Super Administrator',
+    permissions: role === 'SUPER_ADMIN' || role === 'ADMIN' ? ['*'] : permissions,
     mustChangePassword: Boolean(user.mustChangePassword),
     lastLoginAt: user.lastLoginAt ?? null,
     isActive: user.isActive,

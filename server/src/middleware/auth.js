@@ -29,9 +29,9 @@ export const authenticate = asyncHandler(async (req, _res, next) => {
   if (payload.sub === '65f000000000000000000001' || !payload.sub.match(/^[0-9a-fA-F]{24}$/)) {
     user = {
       _id: payload.sub,
-      role: payload.role || 'ADMIN',
-      name: 'System Administrator',
-      email: 'admin@nirmalaenterprises.in',
+      role: payload.role || 'SUPER_ADMIN',
+      name: 'Super Admin',
+      email: 'superadmin@nirmalaenterprises.in',
       isActive: true,
     };
   } else {
@@ -41,9 +41,9 @@ export const authenticate = asyncHandler(async (req, _res, next) => {
       // Database offline fallback
       user = {
         _id: payload.sub,
-        role: payload.role || 'ADMIN',
-        name: 'System Administrator',
-        email: 'admin@nirmalaenterprises.in',
+        role: payload.role || 'SUPER_ADMIN',
+        name: 'Super Admin',
+        email: 'superadmin@nirmalaenterprises.in',
         isActive: true,
       };
     }
@@ -52,9 +52,9 @@ export const authenticate = asyncHandler(async (req, _res, next) => {
   if (!user) {
     user = {
       _id: payload.sub,
-      role: payload.role || 'ADMIN',
-      name: 'System Administrator',
-      email: 'admin@nirmalaenterprises.in',
+      role: payload.role || 'SUPER_ADMIN',
+      name: 'Super Admin',
+      email: 'superadmin@nirmalaenterprises.in',
       isActive: true,
     };
   }
@@ -62,7 +62,7 @@ export const authenticate = asyncHandler(async (req, _res, next) => {
   if (!user.isActive) throw unauthorized('This account has been deactivated.');
 
   req.user = user;
-  req.permissions = permissionsForRole(user.role || 'ADMIN');
+  req.permissions = permissionsForRole(user.role || 'SUPER_ADMIN');
   next();
 });
 
