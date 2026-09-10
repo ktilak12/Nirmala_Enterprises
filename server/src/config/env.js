@@ -39,10 +39,13 @@ export const env = {
   jwtSecret,
   jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '12h',
   clientOrigin: process.env.CLIENT_ORIGIN ?? 'http://localhost:5173',
-  seedAdmin: {
-    email: process.env.SEED_ADMIN_EMAIL ?? 'admin@nirmalaenterprises.in',
-    password: process.env.SEED_ADMIN_PASSWORD ?? 'Admin@12345',
-    name: process.env.SEED_ADMIN_NAME ?? 'System Administrator',
+  get seedAdmin() {
+    dotenv.config({ path: path.join(serverRoot, '.env'), override: true, quiet: true });
+    return {
+      email: process.env.SEED_ADMIN_EMAIL ?? 'admin@nirmalaenterprises.in',
+      password: process.env.SEED_ADMIN_PASSWORD ?? 'Admin@12345',
+      name: process.env.SEED_ADMIN_NAME ?? 'System Administrator',
+    };
   },
   serverRoot,
 };

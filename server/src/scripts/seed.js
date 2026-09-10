@@ -118,7 +118,7 @@ async function seedAdmin() {
     name,
     email,
     passwordHash: await hashPassword(password),
-    role: ROLES.ADMIN,
+    role: ROLES.SUPER_ADMIN,
     isActive: true,
     mustChangePassword: true,
   });

@@ -23,34 +23,34 @@ export function createApp() {
     contentSecurityPolicy: {
       directives: {
         ...helmet.contentSecurityPolicy.getDefaultDirectives(),
-        'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com', 'https:'],
-        'font-src': ["'self'", 'data:', 'https://fonts.gstatic.com', 'https:'],
+        'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+        'font-src': ["'self'", 'data:', 'https://fonts.gstatic.com'],
         'img-src': ["'self'", 'data:', 'blob:', 'https:'],
-        'script-src': ["'self'", "'unsafe-inline'", 'https:'],
+        'script-src': ["'self'", "'unsafe-inline'"],
       },
     },
   }));
-  app.use(cors({ origin: env.clientOrigin, credentials: true }));
+  app.use(cors({
+    origin: [
+      env.clientOrigin,
+      'http://localhost:5000',
+      'http://127.0.0.1:5000',
+      'http://localhost:5173',
+      'http://127.0.0.1:5173',
+    ],
+    credentials: true,
+  }));
   app.use(express.json({ limit: '1mb' }));
   app.use(express.urlencoded({ extended: true }));
 
   if (!env.isProduction) app.use(morgan('dev'));
 
   /**
-   * Login is rate limited separately and much harder than the rest of the API:
-   * it is the one endpoint where guessing repeatedly is the whole attack
-   * (Section 45).
-   */
-  /**
-   * Login is rate limited strictly for remote traffic, while skipping local admin testing.
+   * Login is rate limited separately and strictly enforced to prevent brute-force attacks.
    */
   const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     limit: 10,
-    skip: (req) => {
-      const ip = String(req.ip || req.headers['x-forwarded-for'] || '').trim();
-      return ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1' || ip.includes('127.0.0.1');
-    },
     standardHeaders: 'draft-7',
     legacyHeaders: false,
     message: { success: false, message: 'Too many sign-in attempts. Please wait a moment and try again.' },

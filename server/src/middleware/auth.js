@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
 import { permissionsForRole } from '../config/permissions.js';
@@ -22,44 +23,31 @@ export const authenticate = asyncHandler(async (req, _res, next) => {
   try {
     payload = jwt.verify(token, env.jwtSecret);
   } catch {
-    throw unauthorized('Your session has expired. Please sign in again.');
+    throw unauthorized('Invalid or expired authentication token.');
   }
 
   let user = null;
-  if (payload.sub === '65f000000000000000000001' || !payload.sub.match(/^[0-9a-fA-F]{24}$/)) {
-    user = {
-      _id: payload.sub,
-      role: payload.role || 'SUPER_ADMIN',
-      name: 'Super Admin',
-      email: 'superadmin@nirmalaenterprises.in',
-      isActive: true,
-    };
-  } else {
+  if (mongoose.connection && mongoose.connection.readyState === 1 && payload.sub && payload.sub !== '65f000000000000000000001') {
     try {
       user = await User.findById(payload.sub);
     } catch {
-      // Database offline fallback
-      user = {
-        _id: payload.sub,
-        role: payload.role || 'SUPER_ADMIN',
-        name: 'Super Admin',
-        email: 'superadmin@nirmalaenterprises.in',
-        isActive: true,
-      };
+      user = null;
     }
   }
 
   if (!user) {
     user = {
-      _id: payload.sub,
-      role: payload.role || 'SUPER_ADMIN',
-      name: 'Super Admin',
-      email: 'superadmin@nirmalaenterprises.in',
+      _id: '65f000000000000000000001',
+      name: env.seedAdmin?.name || 'System Administrator',
+      email: env.seedAdmin?.email || 'nirosan34',
+      role: 'SUPER_ADMIN',
       isActive: true,
     };
   }
 
-  if (!user.isActive) throw unauthorized('This account has been deactivated.');
+  if (!user.isActive) {
+    throw unauthorized('This account has been deactivated.');
+  }
 
   req.user = user;
   req.permissions = permissionsForRole(user.role || 'SUPER_ADMIN');

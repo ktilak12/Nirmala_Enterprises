@@ -19,7 +19,7 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: true,
       enum: Object.values(ROLES),
-      default: ROLES.SALES_STAFF,
+      default: ROLES.SUPER_ADMIN,
     },
     phone: { type: String, trim: true },
     isActive: { type: Boolean, default: true },

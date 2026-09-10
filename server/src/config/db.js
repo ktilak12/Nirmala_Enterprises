@@ -20,6 +20,7 @@ import '../models/index.js';
  */
 export async function connectDatabase() {
   mongoose.set('strictQuery', true);
+  mongoose.set('bufferCommands', false);
 
   await mongoose.connect(env.mongoUri, {
     serverSelectionTimeoutMS: 10_000,
