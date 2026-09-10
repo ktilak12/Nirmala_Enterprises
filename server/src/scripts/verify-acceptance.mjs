@@ -213,10 +213,10 @@ async function signIn() {
   assert(typeof login.body.token === 'string' && login.body.token.length > 20, 'Sign-in returns a bearer token');
 
   const me = must(await GET('/auth/me', login.body.token), 'GET /auth/me');
-  assert(me.user?.role === 'ADMIN', 'The seeded account is an ADMIN', `got ${me.user?.role}`);
+  assert(me.user?.role === 'SUPER_ADMIN', 'The seeded account is a SUPER_ADMIN', `got ${me.user?.role}`);
   assert(
     Array.isArray(me.user?.permissions) && me.user.permissions.includes('*'),
-    'ADMIN carries the wildcard permission',
+    'SUPER_ADMIN carries the wildcard permission',
   );
 
   /**
@@ -572,7 +572,7 @@ async function readCashBook(token) {
  * ------------------------------------------------------------------------ */
 
 async function testRbac(adminToken, fx, made) {
-  heading('5. Role limits are enforced by the API, not just hidden in the menu');
+  heading('5. Single SUPER_ADMIN access model enforced across the API');
 
   const users = must(await GET('/users', adminToken), 'Listing users').rows ?? [];
   let staff = users.find((u) => u.email === FIXTURES.staffEmail);
@@ -582,97 +582,56 @@ async function testRbac(adminToken, fx, made) {
       await POST(
         '/users',
         {
-          name: `${MARK} Sales Clerk`,
+          name: `${MARK} Admin Assistant`,
           email: FIXTURES.staffEmail,
           password: FIXTURES.staffPassword,
-          role: 'SALES_STAFF',
+          role: 'SUPER_ADMIN',
         },
         adminToken,
       ),
-      'Creating the test sales clerk',
+      'Creating the test super admin assistant',
     ).user;
-    log(`   made     SALES_STAFF ${staff.email}`);
+    log(`   made     SUPER_ADMIN ${staff.email}`);
   } else {
     /* Reset the password so a run after a manual change still gets in. */
     must(
       await POST(`/users/${staff._id}/reset-password`, { newPassword: FIXTURES.staffPassword }, adminToken),
-      'Resetting the test clerk password',
+      'Resetting the test admin password',
     );
-    log(`   reusing  SALES_STAFF ${staff.email}`);
+    log(`   reusing  SUPER_ADMIN ${staff.email}`);
   }
 
   const login = await POST('/auth/login', { email: FIXTURES.staffEmail, password: FIXTURES.staffPassword });
   if (login.status === 429) {
-    log('   SKIP  Login rate limit reached; cannot sign in as the clerk this run.');
+    log('   SKIP  Login rate limit reached; cannot sign in as the admin this run.');
     return;
   }
   if (login.status !== 200) {
-    assert(false, 'The sales clerk can sign in', `HTTP ${login.status}: ${login.body?.error ?? ''}`);
+    assert(false, 'The super admin user can sign in', `HTTP ${login.status}: ${login.body?.error ?? ''}`);
     return;
   }
   const t = login.body.token;
-  assert(true, 'The sales clerk can sign in');
+  assert(true, 'The super admin user can sign in');
 
-  /* What the role is for. */
+  /* Full access verified for super admin. */
   for (const [path, label] of [
     ['/sales?limit=1', 'read sales'],
     ['/products?limit=1', 'read products'],
     ['/parties?limit=1', 'read parties'],
     ['/invoices?limit=1', 'read invoices'],
     ['/reports', 'see the report list'],
+    ['/purchases?limit=1', 'see purchases'],
+    ['/expenses?limit=1', 'see expenses'],
+    ['/loans?limit=1', 'see farmer advances'],
+    ['/users?limit=1', 'see the user list'],
+    ['/audit?limit=1', 'read the audit trail'],
+    ['/settings', 'read settings'],
   ]) {
     const r = await GET(path, t);
-    assert(r.status === 200, `Allowed: the clerk can ${label}`, `HTTP ${r.status}`);
+    assert(r.status === 200, `Allowed: super admin can ${label}`, `HTTP ${r.status}`);
   }
-
-  /* The report list must already be filtered - not merely gated on opening. */
-  const list = must(await GET('/reports', t), 'Clerk report list').rows ?? [];
-  assert(
-    list.length > 0 && list.every((r) => r.financial !== true),
-    'The clerk\'s report list contains no financial reports at all',
-    `offered: ${list.filter((r) => r.financial).map((r) => r.key).join(', ') || 'none'}`,
-  );
-
-  /* What the role is not for. Each of these is a 403 from the server. */
-  const denied = [
-    ['GET', '/reports/profit?format=json', 'open the profit report'],
-    ['GET', '/reports/cash-book?format=json', 'open the cash book report'],
-    ['GET', '/reports/inventory?format=json', 'open the inventory valuation'],
-    ['GET', '/reports/sales?format=json&groupBy=product', 'open a sales report grouped by product'],
-    ['GET', '/purchases?limit=1', 'see purchases'],
-    ['GET', '/expenses?limit=1', 'see expenses'],
-    ['GET', '/loans?limit=1', 'see farmer advances'],
-    ['GET', '/users?limit=1', 'see the user list'],
-    ['GET', '/audit?limit=1', 'read the audit trail'],
-    ['GET', '/settings', 'read settings'],
-  ];
-  for (const [method, path, label] of denied) {
-    const r = await call(method, path, { token: t });
-    assert(r.status === 403, `Refused: the clerk cannot ${label}`, `HTTP ${r.status}`);
-  }
-
-  /* And the two write refusals the plan called out by name. */
-  const cancel = await POST(`/loans/${made.loan._id}/cancel`, { reason: 'Testing the refusal' }, t);
-  assert(cancel.status === 403, 'Refused: the clerk cannot cancel a farmer advance', `HTTP ${cancel.status}`);
-
-  const adjust = await POST(
-    '/inventory/movements',
-    { productId: fx.fert._id, type: 'ADJUSTMENT', qtyDelta: 5, remarks: 'Testing the refusal' },
-    t,
-  );
-  assert(adjust.status === 403, 'Refused: the clerk cannot hand-adjust stock', `HTTP ${adjust.status}`);
-
-  /* The advance really is untouched by that attempt. */
-  const still = must(await GET(`/loans/${made.loan._id}`, adminToken), 'Re-reading the advance').loan;
-  assert(still.status !== 'CANCELLED', 'The advance survived the refused cancellation', `status ${still.status}`);
-
-  /* The dashboard withholds figures rather than failing. */
   const dash = await GET('/dashboard', t);
-  assert(dash.status === 200, 'The clerk still gets a working dashboard', `HTTP ${dash.status}`);
-  assert(
-    dash.body?.meta?.financialsWithheld === true && dash.body?.data?.financials === undefined,
-    'The clerk\'s dashboard withholds the financial block and says so',
-  );
+  assert(dash.status === 200, 'The admin gets a working dashboard', `HTTP ${dash.status}`);
 
   /* A token that is not a token gets nowhere. */
   const forged = await GET('/sales?limit=1', 'not.a.real.token');

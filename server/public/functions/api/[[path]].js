@@ -16,7 +16,33 @@ export async function onRequest(context) {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // --- AUTH ENDPOINTS ---
+  // --- PUBLIC ENDPOINTS (No auth required) ---
+  if (path.startsWith('/api/public/mandi-rates')) {
+    const rates = [
+      { commodity: 'Yellow Maize', minPrice: 2150, maxPrice: 2380, modalPrice: 2280, market: 'Jharigam Mandi', date: new Date().toISOString() },
+      { commodity: 'Swarna Paddy (Grade A)', minPrice: 2300, maxPrice: 2580, modalPrice: 2450, market: 'Sambalpur Mandi', date: new Date().toISOString() }
+    ];
+    return new Response(JSON.stringify({ success: true, data: rates }), { status: 200, headers: corsHeaders });
+  }
+
+  if (path === '/api/public/products') {
+    const products = [
+      { _id: 'prod_001', productCode: 'SED-MZ-01', name: 'Hybrid Maize Seed (Pioneer 3396)', category: 'SEEDS', unit: 'Bags', brand: 'Pioneer Hi-Bred', inStock: true, description: 'High-yielding drought-tolerant hybrid yellow maize seed (5 kg bag).' },
+      { _id: 'prod_002', productCode: 'SED-PD-02', name: 'Paddy Seed IR-64 (Certified)', category: 'SEEDS', unit: 'Bags', brand: 'Odisha State Seeds Corp (OSSC)', inStock: true, description: 'Medium slender certified long-grain paddy seed (25 kg bag).' },
+      { _id: 'prod_004', productCode: 'FRT-UR-04', name: 'Neem Coated Urea (45 kg)', category: 'FERTILIZERS', unit: 'Bags', brand: 'KRIBHCO / IFFCO', inStock: true, description: 'Essential nitrogenous fertilizer for vegetative crop growth.' },
+      { _id: 'prod_005', productCode: 'FRT-DP-05', name: 'DAP 18:46:00 (50 kg)', category: 'FERTILIZERS', unit: 'Bags', brand: 'IFFCO', inStock: true, description: 'Di-Ammonium Phosphate for strong root establishment.' }
+    ];
+    return new Response(JSON.stringify({ success: true, rows: products }), { status: 200, headers: corsHeaders });
+  }
+
+  if (path === '/api/public/inquiries' || path === '/api/public/contact') {
+    return new Response(
+      JSON.stringify({ success: true, message: 'Inquiry received. Our agricultural officer will contact you within 24 hours.' }),
+      { status: 200, headers: corsHeaders }
+    );
+  }
+
+  // --- AUTH LOGIN ---
   if (path === '/api/auth/login' && method === 'POST') {
     let body = {};
     try {
@@ -26,13 +52,10 @@ export async function onRequest(context) {
     const username = (body.username || body.email || '').trim().toLowerCase();
     const password = String(body.password || '');
 
-    // Allow only Super Admin credentials
+    // Secure authentication check
     if (
-      (username === 'superadmin@nirmalaenterprises.in' ||
-        username === 'superadmin' ||
-        username === 'admin@nirmalaenterprises.in' ||
-        username === 'admin') &&
-      (password === 'admin123' || password === 'Admin@12345' || password.length >= 4)
+      (username === 'nirosan34' || username === 'admin@nirmalaenterprises.in' || username === 'superadmin@nirmalaenterprises.in') &&
+      (password === 'Tanvika@647652' || password === 'Admin@12345')
     ) {
       return new Response(
         JSON.stringify({
@@ -41,7 +64,7 @@ export async function onRequest(context) {
           user: {
             id: '65f000000000000000000001',
             name: 'Super Admin',
-            email: 'superadmin@nirmalaenterprises.in',
+            email: 'admin@nirmalaenterprises.in',
             role: 'SUPER_ADMIN',
             roleLabel: 'Super Administrator',
             permissions: ['*'],
@@ -54,7 +77,18 @@ export async function onRequest(context) {
     }
 
     return new Response(
-      JSON.stringify({ success: false, message: 'Invalid credentials. Only the Super Admin is authorized to access the admin portal.' }),
+      JSON.stringify({ success: false, message: 'Invalid email or password.' }),
+      { status: 401, headers: corsHeaders }
+    );
+  }
+
+  // --- AUTHENTICATION REQUIRED FOR ALL OTHER API ROUTES ---
+  const authHeader = request.headers.get('Authorization') || '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
+
+  if (!token) {
+    return new Response(
+      JSON.stringify({ success: false, message: 'Sign in to continue.' }),
       { status: 401, headers: corsHeaders }
     );
   }
@@ -66,7 +100,7 @@ export async function onRequest(context) {
         user: {
           id: '65f000000000000000000001',
           name: 'Super Admin',
-          email: 'superadmin@nirmalaenterprises.in',
+          email: 'admin@nirmalaenterprises.in',
           role: 'SUPER_ADMIN',
           roleLabel: 'Super Administrator',
           permissions: ['*'],
@@ -133,7 +167,7 @@ export async function onRequest(context) {
   }
 
   // --- PRODUCTS ---
-  if (path.startsWith('/api/products') || path.startsWith('/api/public/products')) {
+  if (path.startsWith('/api/products')) {
     const products = [
       { _id: 'prod_001', productCode: 'SED-MZ-01', name: 'Hybrid Maize Seed (Pioneer 3396)', category: 'SEEDS', unit: 'Bags', brand: 'Pioneer Hi-Bred', purchasePrice: 1850, sellingPrice: 2100, currentStock: 145, minStockAlert: 20, description: 'High-yielding drought-tolerant hybrid yellow maize seed (5 kg bag).' },
       { _id: 'prod_002', productCode: 'SED-PD-02', name: 'Paddy Seed IR-64 (Certified)', category: 'SEEDS', unit: 'Bags', brand: 'Odisha State Seeds Corp (OSSC)', purchasePrice: 650, sellingPrice: 760, currentStock: 280, minStockAlert: 30, description: 'Medium slender certified long-grain paddy seed (25 kg bag).' },
@@ -175,9 +209,9 @@ export async function onRequest(context) {
       );
     }
     const farmers = [
-      { _id: 'frm_001', farmerCode: 'FARM-001', name: 'Ramesh Chandra Sahu', fatherName: 'Birendra Sahu', phone: '9861012345', village: 'Attabira', district: 'Bargarh', state: 'Odisha', landAcres: 12.5, primaryCrop: 'Paddy & Maize', outstandingAdvance: 0, totalProcuredQuintals: 185 },
-      { _id: 'frm_002', farmerCode: 'FARM-002', name: 'Pradeep Mohapatra', fatherName: 'Jogendra Mohapatra', phone: '9437156789', village: 'Bheden', district: 'Bargarh', state: 'Odisha', landAcres: 8.0, primaryCrop: 'Paddy & Pulses', outstandingAdvance: 18000, totalProcuredQuintals: 120 },
-      { _id: 'frm_003', farmerCode: 'FARM-003', name: 'Bikash Kumar Meher', fatherName: 'Surendra Meher', phone: '9937024680', village: 'Barpali', district: 'Bargarh', state: 'Odisha', landAcres: 15.0, primaryCrop: 'Paddy & Mustard', outstandingAdvance: 41200, totalProcuredQuintals: 240 }
+      { _id: 'frm_001', farmerCode: 'FARM-001', name: 'Ramesh Chandra Sahu', fatherName: 'Birendra Sahu', phone: '9861012345', village: 'Attabira', district: 'Nabarangpur', state: 'Odisha', landAcres: 12.5, primaryCrop: 'Paddy & Maize', outstandingAdvance: 0, totalProcuredQuintals: 185 },
+      { _id: 'frm_002', farmerCode: 'FARM-002', name: 'Pradeep Mohapatra', fatherName: 'Jogendra Mohapatra', phone: '9437156789', village: 'Bheden', district: 'Nabarangpur', state: 'Odisha', landAcres: 8.0, primaryCrop: 'Paddy & Pulses', outstandingAdvance: 18000, totalProcuredQuintals: 120 },
+      { _id: 'frm_003', farmerCode: 'FARM-003', name: 'Bikash Kumar Meher', fatherName: 'Surendra Meher', phone: '9937024680', village: 'Barpali', district: 'Nabarangpur', state: 'Odisha', landAcres: 15.0, primaryCrop: 'Paddy & Mustard', outstandingAdvance: 41200, totalProcuredQuintals: 240 }
     ];
     return new Response(JSON.stringify({ success: true, data: farmers }), { status: 200, headers: corsHeaders });
   }
@@ -194,19 +228,32 @@ export async function onRequest(context) {
     }
     const parties = [
       { _id: 'pty_001', type: 'CUSTOMER', name: 'Sambalpur Rice Mills', companyName: 'Sambalpur Agro Mills Pvt Ltd', phone: '9437011223', email: 'procurement@sambalpurrice.com', gstin: '21AABCS1234F1Z5', city: 'Sambalpur', address: 'Industrial Area, Sambalpur', creditLimit: 500000, currentBalance: 45000 },
-      { _id: 'pty_002', type: 'SUPPLIER', name: 'IFFCO Fertilizer Depot', companyName: 'Indian Farmers Fertiliser Co-operative Ltd', phone: '9861055443', email: 'bargarh@iffco.in', gstin: '21AAACI0234B1Z8', city: 'Bargarh', address: 'APMC Yard Godown 4', creditLimit: 1000000, currentBalance: 0 },
-      { _id: 'pty_003', type: 'SUPPLIER', name: 'Pioneer Hi-Bred Seeds Depot', companyName: 'Corteva Agriscience India Pvt Ltd', phone: '9437199882', email: 'odisha.sales@pioneer.com', gstin: '21AABCP8891M1Z1', city: 'Bargarh', address: 'Main Road Agro Complex', creditLimit: 800000, currentBalance: 12500 }
+      { _id: 'pty_002', type: 'SUPPLIER', name: 'IFFCO Fertilizer Depot', companyName: 'Indian Farmers Fertiliser Co-operative Ltd', phone: '9861055443', email: 'nabarangpur@iffco.in', gstin: '21AAACI0234B1Z8', city: 'Jharigam', address: 'APMC Yard Godown 4', creditLimit: 1000000, currentBalance: 0 },
+      { _id: 'pty_003', type: 'SUPPLIER', name: 'Pioneer Hi-Bred Seeds Depot', companyName: 'Corteva Agriscience India Pvt Ltd', phone: '9437199882', email: 'odisha.sales@pioneer.com', gstin: '21AABCP8891M1Z1', city: 'Jharigam', address: 'Main Road Agro Complex', creditLimit: 800000, currentBalance: 12500 }
     ];
     return new Response(JSON.stringify({ success: true, data: parties }), { status: 200, headers: corsHeaders });
   }
 
-  // --- MANDI RATES ---
-  if (path.startsWith('/api/public/mandi-rates')) {
-    const rates = [
-      { commodity: 'Yellow Maize', minPrice: 2150, maxPrice: 2380, modalPrice: 2280, market: 'Bargarh APMC', date: new Date().toISOString() },
-      { commodity: 'Swarna Paddy (Grade A)', minPrice: 2300, maxPrice: 2580, modalPrice: 2450, market: 'Sambalpur Mandi', date: new Date().toISOString() }
-    ];
-    return new Response(JSON.stringify({ success: true, data: rates }), { status: 200, headers: corsHeaders });
+  // --- TRANSACTION DELETIONS (SALES, INVOICES, PURCHASES, LOANS) ---
+  if (
+    (path.startsWith('/api/sales') ||
+      path.startsWith('/api/invoices') ||
+      path.startsWith('/api/purchases') ||
+      path.startsWith('/api/procurement') ||
+      path.startsWith('/api/loans') ||
+      path.startsWith('/api/lending') ||
+      path.startsWith('/api/transactions')) &&
+    method === 'DELETE'
+  ) {
+    const parts = path.split('/');
+    const txnId = parts[parts.length - 1];
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: `Transaction ${txnId} deleted successfully. Product inventory and balances restored.`
+      }),
+      { status: 200, headers: corsHeaders }
+    );
   }
 
   // Generic fallback

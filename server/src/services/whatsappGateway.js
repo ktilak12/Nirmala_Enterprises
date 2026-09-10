@@ -29,7 +29,7 @@ function getSettings() {
     console.error('[WA GATEWAY] Failed to read settings:', e.message);
   }
   return {
-    adminPhone: process.env.SUPER_ADMIN_PHONE || '7848956963',
+    adminPhone: process.env.SUPER_ADMIN_PHONE || '9777986964',
     autoSendOnCheckout: true,
     sendCustomerBill: true,
     sendAdminAlert: true
@@ -218,7 +218,7 @@ class WhatsAppGatewayService {
 
   async sendSilentSaleAlerts(sale, host = 'localhost:5000', protocol = 'http') {
     const settings = getSettings();
-    const adminPhone = settings.adminPhone || '7848956963';
+    const adminPhone = settings.adminPhone || '9777986964';
     const invoiceUrl = `${protocol}://${host}/invoice/${sale.invoiceNo}`;
 
     const itemsSummary = (sale.items || [])
@@ -256,8 +256,8 @@ ${(sale.balanceDue || 0) > 0 ? `⚠️ *Balance Due: ₹${sale.balanceDue}*` : '
 ${invoiceUrl}
 ━━━━━━━━━━━━━━━━━━━━━
 🌱 _Thank you for choosing Nirmala Enterprises!_
-📞 *Support Helpline:* +91 94800 12345
-📍 APMC Yard, Bargarh, Odisha`;
+📞 *Support Helpline:* +91 97779 86964
+📍 Main Road, Jharigam, Nabarangpur, 764076, Odisha`;
 
     const adminMsg = 
 `🔔 *PAYMENT RECEIVED ALERT* 🔔
