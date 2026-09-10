@@ -24,7 +24,7 @@ function loadFromFile(filename, defaultData) {
     if (fs.existsSync(filePath)) {
       const raw = fs.readFileSync(filePath, 'utf8');
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         return parsed;
       }
     }
@@ -837,9 +837,7 @@ mockRouter.get('/dashboard/summary', (_req, res) => {
 
   // Dynamic daily sales breakdown for the last 14 days
   const todayDate = new Date();
-  const todayStr = todayDate.toISOString().split('T')[0];
   const dailySales = [];
-  const baseDailyAmounts = [18400, 24600, 15200, 29800, 31200, 21500, 38400, 26700, 33100, 29400, 41200, 35600, 28900];
 
   for (let i = 13; i >= 0; i--) {
     const d = new Date(todayDate);
@@ -849,39 +847,37 @@ mockRouter.get('/dashboard/summary', (_req, res) => {
     const dayName = isToday ? 'Today' : d.toLocaleDateString('en-IN', { weekday: 'short' });
     const label = isToday ? 'Today' : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
 
-    // Filter sales matching this specific date
     const daySales = sales.filter(s => {
       const sDate = new Date(s.date || s.createdAt).toISOString().split('T')[0];
       return sDate === dateStr;
     });
 
     const recordedTotal = daySales.reduce((sum, s) => sum + (Number(s.grandTotal !== undefined ? s.grandTotal : s.total) || 0), 0);
-    const baseAmount = isToday ? 0 : (baseDailyAmounts[13 - i] || 22000);
-    const amount = isToday ? (recordedTotal > 0 ? recordedTotal : todaySales) : (recordedTotal > 0 ? recordedTotal : baseAmount);
-    const count = daySales.length > 0 ? daySales.length : (isToday ? sales.length : Math.max(1, Math.round(amount / 9500)));
 
     dailySales.push({
       date: dateStr,
       dayName,
       label,
-      amount: Math.round(amount),
-      count
+      amount: Math.round(recordedTotal),
+      count: daySales.length
     });
   }
 
   // Monthly sales breakdown
   const monthlySales = [];
-  const baseMonthly = [380000, 460000, 590000, 710000, 840000, 920000];
   for (let i = 5; i >= 0; i--) {
     const d = new Date(todayDate);
     d.setMonth(d.getMonth() - i);
     const label = d.toLocaleDateString('en-IN', { month: 'short' });
-    const isCurrentMonth = i === 0;
-    const amt = isCurrentMonth ? (baseMonthly[5] + Math.round(todaySales)) : baseMonthly[5 - i];
+    const mSales = sales.filter(s => {
+      const sDate = new Date(s.date || s.createdAt);
+      return sDate.getFullYear() === d.getFullYear() && sDate.getMonth() === d.getMonth();
+    });
+    const amt = mSales.reduce((sum, s) => sum + (Number(s.grandTotal !== undefined ? s.grandTotal : s.total) || 0), 0);
     monthlySales.push({
       label,
-      amount: amt,
-      count: Math.round(amt / 11000)
+      amount: Math.round(amt),
+      count: mSales.length
     });
   }
 
@@ -2783,11 +2779,14 @@ mockRouter.get('/payments', (_req, res) => {
 
 // --- DASHBOARD ---
 mockRouter.get('/dashboard', (_req, res) => {
+  const todaySales = sales.reduce((sum, s) => sum + (Number(s.grandTotal !== undefined ? s.grandTotal : s.total) || 0), 0);
+  const totalProcurement = purchases.reduce((sum, p) => sum + (Number(p.grossAmount !== undefined ? p.grossAmount : p.netPayable) || 0), 0);
+  const outstandingLending = loans.filter(l => l.status === 'ACTIVE').reduce((sum, l) => sum + (Number(l.amount) || 0), 0);
   res.json({
     success: true,
     data: {
-      financials: { todaySales: 8000, totalProcurement: 22000, netProfit: 3960 },
-      kpis: { farmerAdvances: 30000, registeredFarmers: 5, totalProducts: 10 }
+      financials: { todaySales, totalProcurement, netProfit: Math.round(todaySales * 0.18) },
+      kpis: { farmerAdvances: outstandingLending, registeredFarmers: farmers.length, totalProducts: products.length }
     },
     meta: { financialsWithheld: false }
   });
