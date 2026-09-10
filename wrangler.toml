@@ -1,0 +1,7 @@
+name = "nirmala-enterprises"
+compatibility_date = "2024-09-01"
+pages_build_output_dir = "server/public"
+
+[[kv_namespaces]]
+binding = "NIRMALA_DB"
+id = "4af621dc60e240cfbdc450e8800af102"
