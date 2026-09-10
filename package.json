@@ -10,6 +10,10 @@
     "verify": "npm --prefix server run verify",
     "verify:acceptance": "npm --prefix server run verify:acceptance",
     "recompute": "npm --prefix server run recompute",
-    "test:atomicity": "npm --prefix server run test:atomicity"
+    "test:atomicity": "npm --prefix server run test:atomicity",
+    "deploy": "wrangler pages deploy server/public --project-name=nirmala-enterprises --branch=main"
+  },
+  "devDependencies": {
+    "wrangler": "^4.131.0"
   }
 }
