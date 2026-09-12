@@ -16,6 +16,60 @@
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
     <script type="module" crossorigin src="/assets/index-DeT_sdPQ.js"></script>
     <link rel="stylesheet" crossorigin href="/assets/index-F3AQAOEh.css">
+    <style>
+      @media print {
+        /* Hide navigation, buttons, and action bars */
+        .no-print,
+        aside,
+        nav,
+        header,
+        footer,
+        button,
+        [role="navigation"] {
+          display: none !important;
+        }
+
+        /* Reset body and container for printing */
+        html, body {
+          background: #ffffff !important;
+          color: #111111 !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          width: 100% !important;
+          min-height: 0 !important;
+        }
+
+        #root, main, .min-h-screen, .space-y-6, .max-w-4xl, .max-w-md {
+          margin: 0 !important;
+          padding: 0 !important;
+          max-width: 100% !important;
+          width: 100% !important;
+          box-shadow: none !important;
+          display: block !important;
+        }
+
+        /* Preserve colors, borders, and typography in print */
+        * {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+
+        table {
+          width: 100% !important;
+          page-break-inside: auto;
+        }
+
+        tr {
+          page-break-inside: avoid;
+          page-break-after: auto;
+        }
+
+        @page {
+          size: auto;
+          margin: 10mm;
+        }
+      }
+    </style>
   </head>
   <body class="bg-[#FFFDF5] text-[#121c2a] antialiased selection:bg-[#acf4a4] selection:text-[#00450d]">
     <div id="root"></div>
