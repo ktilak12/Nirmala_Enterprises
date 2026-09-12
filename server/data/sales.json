@@ -1,1 +1,34 @@
-[]
+[
+  {
+    "_id": "sale_1789217011741",
+    "invoiceNo": "INV-2026-001",
+    "invoiceNumber": "INV-2026-001",
+    "date": "2026-09-12T12:43:31.741Z",
+    "customerName": "Walk-in Customer",
+    "customerPhone": "",
+    "customerAddress": "Main Road, Jharigam, Nabarangpur",
+    "items": [
+      {
+        "productId": "prod_002",
+        "productCode": "FRT-UREA-02",
+        "productName": "Neem Coated Urea (45 kg)",
+        "unit": "Bags",
+        "unitPrice": 266,
+        "gstRate": 0,
+        "quantity": 2,
+        "total": 532
+      }
+    ],
+    "subtotal": 0,
+    "discount": 0,
+    "tax": 0,
+    "grandTotal": 0,
+    "total": 0,
+    "paidAmount": 532,
+    "balanceDue": 0,
+    "paymentMode": "UPI",
+    "paymentStatus": "PAID",
+    "notes": "",
+    "createdAt": "2026-09-12T12:43:31.741Z"
+  }
+]

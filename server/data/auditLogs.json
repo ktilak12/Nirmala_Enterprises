@@ -1,1 +1,36 @@
-[]
+[
+  {
+    "_id": "aud_1789217670319",
+    "action": "DELETE_SALE_INVOICE",
+    "timestamp": "2026-09-12T12:54:30.319Z",
+    "user": "Administrator",
+    "role": "ADMIN",
+    "summary": "Deleted Sales Invoice: INV-2026-001 (Amount: ₹19870). Stocks & balance restored.",
+    "ip": "::1"
+  },
+  {
+    "_id": "aud_1789217666980",
+    "action": "DELETE_SALE_INVOICE",
+    "timestamp": "2026-09-12T12:54:26.980Z",
+    "user": "Administrator",
+    "role": "ADMIN",
+    "summary": "Deleted Sales Invoice: INV-2026-002 (Amount: ₹31500). Stocks & balance restored.",
+    "ip": "::1"
+  },
+  {
+    "_id": "aud_1789217659780",
+    "action": "DELETE_SALE_INVOICE",
+    "timestamp": "2026-09-12T12:54:19.780Z",
+    "user": "Administrator",
+    "role": "ADMIN",
+    "summary": "Deleted Sales Invoice: INV-2026-003 (Amount: ₹6800). Stocks & balance restored.",
+    "ip": "::1"
+  },
+  {
+    "_id": "aud_1789217635862",
+    "action": "CREATE_SALE",
+    "actor": "Sales Staff",
+    "summary": "Generated bill INV-2026-003 for Walk-in Customer (₹6,800)",
+    "timestamp": "2026-09-12T12:53:55.868Z"
+  }
+]
