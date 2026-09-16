@@ -1,10 +1,11 @@
+import crypto from 'node:crypto';
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import { env } from '../config/env.js';
 import { withTransaction } from '../config/db.js';
 import { permissionsForRole, ROLES } from '../config/permissions.js';
 import { User } from '../models/User.js';
-import { badRequest, conflict, notFound, unauthorized } from '../utils/errors.js';
+import { badRequest, conflict, notFound, unauthorized, serviceUnavailable } from '../utils/errors.js';
 import { writeAudit } from './audit.js';
 
 /**
@@ -18,6 +19,12 @@ import { writeAudit } from './audit.js';
  */
 
 const BCRYPT_ROUNDS = 12;
+
+// Pre-computed constant round-12 bcrypt hash for timing attack mitigation.
+// When an email does not exist in the database, bcrypt comparison is still
+// performed against this dummy hash to maintain constant response times and
+// defeat user enumeration attacks.
+const DUMMY_BCRYPT_HASH = '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4N2.g/O1iG';
 
 // In-memory lockout storage: key -> { count: number, lockedUntil: Date | null }
 const loginAttempts = new Map();
@@ -109,50 +116,78 @@ export function assertPasswordAcceptable(plain) {
 
 export async function login({ email, password, req }) {
   const cleanEmail = String(email ?? '').toLowerCase().trim();
+  const cleanPassword = String(password ?? '');
   const clientIp = req?.ip || 'unknown';
 
-  // Check lockout
+  // 1. Check lockout status
   const lockout = checkAccountLockout(cleanEmail, clientIp);
   if (lockout.isLocked) {
     throw unauthorized(lockout.message);
   }
 
+  const isDbConnected = Boolean(mongoose.connection && mongoose.connection.readyState === 1);
   let user = null;
+  let authenticated = false;
   let isFromDb = false;
 
-  if (mongoose.connection && mongoose.connection.readyState === 1) {
+  if (isDbConnected) {
     try {
       user = await User.findOne({ email: cleanEmail }).select('+passwordHash');
       if (user) isFromDb = true;
     } catch {
       user = null;
     }
-  }
 
-  let authenticated = false;
-
-  if (user && isFromDb) {
-    const hash = user.passwordHash ?? '';
-    authenticated = await bcrypt.compare(String(password ?? ''), hash);
+    if (user && isFromDb) {
+      const hash = user.passwordHash ?? '';
+      authenticated = await bcrypt.compare(cleanPassword, hash);
+    } else {
+      // User does not exist in DB: execute dummy comparison to protect against timing-based user enumeration
+      await bcrypt.compare(cleanPassword, DUMMY_BCRYPT_HASH);
+      authenticated = false;
+    }
   } else {
-    authenticated = true;
-    const configEmail = String(env.seedAdmin?.email || 'nirosan34').toLowerCase().trim();
-    user = {
-      _id: '65f000000000000000000001',
-      name: env.seedAdmin?.name || 'System Administrator',
-      email: cleanEmail || configEmail,
-      role: 'SUPER_ADMIN',
-      isActive: true,
-      mustChangePassword: false,
-      toJSON() { return { ...this }; }
-    };
+    // Database is offline: strictly fail in production
+    if (env.isProduction) {
+      throw serviceUnavailable('Authentication service is currently unavailable. Please try again later.');
+    }
+
+    // In DEVELOPMENT mode ONLY, provide a secure offline fallback for the seed admin.
+    // Explicitly verify BOTH username and password (using constant-time buffer comparison).
+    const devAdminEmail = String(env.seedAdmin?.email || '').toLowerCase().trim();
+    const devAdminPassword = String(env.seedAdmin?.password || '');
+
+    if (devAdminEmail && devAdminPassword && cleanEmail === devAdminEmail) {
+      const inputBuf = Buffer.from(cleanPassword);
+      const targetBuf = Buffer.from(devAdminPassword);
+      if (inputBuf.length === targetBuf.length && crypto.timingSafeEqual(inputBuf, targetBuf)) {
+        authenticated = true;
+        user = {
+          _id: '65f000000000000000000001',
+          name: env.seedAdmin?.name || 'System Administrator',
+          email: devAdminEmail,
+          role: ROLES.SUPER_ADMIN,
+          isActive: true,
+          mustChangePassword: false,
+          toJSON() { return { ...this }; }
+        };
+        console.warn(`[SECURITY WARNING] Database is offline: authenticated ${cleanEmail} via environment seed admin fallback (Development mode only).`);
+      } else {
+        await bcrypt.compare(cleanPassword, DUMMY_BCRYPT_HASH);
+        authenticated = false;
+      }
+    } else {
+      await bcrypt.compare(cleanPassword, DUMMY_BCRYPT_HASH);
+      authenticated = false;
+    }
   }
 
+  // 2. Reject if not authenticated or user missing
   if (!user || !authenticated) {
     const record = recordFailedLogin(cleanEmail, clientIp);
 
     await writeAudit({
-      actor: user ?? null,
+      actor: null,
       action: 'LOGIN_FAILED',
       entity: 'User',
       entityId: user?._id ?? null,
@@ -168,10 +203,13 @@ export async function login({ email, password, req }) {
     throw unauthorized('Email or password is incorrect.');
   }
 
-  // Reset failed attempt count on successful login
+  // 3. Reset failed attempt counter on successful login
   resetLoginAttempts(cleanEmail, clientIp);
 
-  if (!user.isActive) throw unauthorized('This account has been deactivated.');
+  // 4. Verify account active state
+  if (!user.isActive) {
+    throw unauthorized('This account has been deactivated.');
+  }
 
   if (isFromDb && user.save) {
     user.lastLoginAt = new Date();
