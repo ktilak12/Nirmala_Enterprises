@@ -22,27 +22,47 @@ export const authenticate = asyncHandler(async (req, _res, next) => {
   let payload;
   try {
     payload = jwt.verify(token, env.jwtSecret);
-  } catch {
-    throw unauthorized('Invalid or expired authentication token.');
+  } catch (err) {
+    if (err?.name === 'TokenExpiredError') {
+      throw unauthorized('Authentication token has expired. Please sign in again.');
+    }
+    throw unauthorized('Invalid authentication token.');
   }
 
+  if (!payload?.sub) {
+    throw unauthorized('Invalid authentication token claims.');
+  }
+
+  const isDbConnected = Boolean(mongoose.connection && mongoose.connection.readyState === 1);
   let user = null;
-  if (mongoose.connection && mongoose.connection.readyState === 1 && payload.sub && payload.sub !== '65f000000000000000000001') {
+
+  if (isDbConnected) {
     try {
       user = await User.findById(payload.sub);
     } catch {
       user = null;
     }
+  } else {
+    // Database offline handling
+    if (env.isProduction) {
+      throw unauthorized('Authentication service temporarily unavailable.');
+    }
+
+    // In DEVELOPMENT mode ONLY, acknowledge the offline seed administrator if ID matches
+    const devAdminEmail = String(env.seedAdmin?.email || '').toLowerCase().trim();
+    if (payload.sub === '65f000000000000000000001' && payload.role === 'SUPER_ADMIN') {
+      user = {
+        _id: '65f000000000000000000001',
+        name: env.seedAdmin?.name || 'System Administrator',
+        email: devAdminEmail,
+        role: 'SUPER_ADMIN',
+        isActive: true,
+      };
+    }
   }
 
   if (!user) {
-    user = {
-      _id: '65f000000000000000000001',
-      name: env.seedAdmin?.name || 'System Administrator',
-      email: env.seedAdmin?.email || 'nirosan34',
-      role: 'SUPER_ADMIN',
-      isActive: true,
-    };
+    throw unauthorized('User account not found or access revoked.');
   }
 
   if (!user.isActive) {
@@ -50,7 +70,7 @@ export const authenticate = asyncHandler(async (req, _res, next) => {
   }
 
   req.user = user;
-  req.permissions = permissionsForRole(user.role || 'SUPER_ADMIN');
+  req.permissions = permissionsForRole(user.role);
   next();
 });
 
