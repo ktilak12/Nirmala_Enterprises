@@ -13,8 +13,8 @@ authRouter.post(
   '/login',
   validate(loginSchema),
   asyncHandler(async (req, res) => {
-    const { email, password } = req.valid.body;
-    const username = String(email).trim().toLowerCase();
+    const { email, username: uField, password } = req.valid.body;
+    const username = String(email || uField || '').trim().toLowerCase();
     const clientIp = req.ip || 'unknown';
 
     // 1. Enforce Account Lockout Check
