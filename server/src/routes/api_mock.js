@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -93,7 +94,11 @@ function saveToFile(filename, data) {
 
 function escapeCsv(val) {
   if (val === null || val === undefined) return '';
-  const str = String(val).replace(/\r?\n/g, ' ').trim();
+  let str = String(val).replace(/\r?\n/g, ' ').trim();
+  // Mitigate CSV Formula Injection (=, +, -, @, tab, cr)
+  if (/^[=+\-@\t\r]/.test(str)) {
+    str = "'" + str;
+  }
   if (str.includes(',') || str.includes('"') || str.includes(';')) {
     return '"' + str.replace(/"/g, '""') + '"';
   }
@@ -299,15 +304,23 @@ mockRouter.post('/public/inquiries', (req, res) => {
 
 mockRouter.get('/public/invoices/:id', (req, res) => {
   const { id } = req.params;
+  const key = req.query.key || req.headers['x-invoice-key'];
   const sale = sales.find(s => s._id === id || s.invoiceNo === id || s.invoiceNumber === id);
   if (!sale) return res.status(404).json({ success: false, message: 'Invoice not found.' });
+  if (sale.accessKey && key !== sale.accessKey) {
+    return res.status(401).json({ success: false, message: 'Unauthorized. Valid invoice access key required to view customer receipt.' });
+  }
   res.json({ success: true, data: sale });
 });
 
 mockRouter.get('/public/invoices/:id/download', (req, res) => {
   const { id } = req.params;
+  const key = req.query.key || req.headers['x-invoice-key'];
   const sale = sales.find(s => s._id === id || s.invoiceNo === id || s.invoiceNumber === id);
   if (!sale) return res.status(404).send('<h2>Invoice Not Found</h2>');
+  if (sale.accessKey && key !== sale.accessKey) {
+    return res.status(401).send('<h2>Unauthorized: Valid invoice key required.</h2>');
+  }
 
   const dateStr = new Date(sale.date || Date.now()).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
   const itemsHtml = (sale.items || []).map((it, idx) => `
@@ -748,16 +761,18 @@ mockRouter.get('/farmers', (_req, res) => {
     const totalProcuredQtl = farmerPurchases.reduce((sum, p) => sum + ((p.payableWeightKg || 0) / 100), 0);
 
     const cibil = calculateFarmerCibil(farmer, farmerSales, farmerPurchases, farmerLoans);
-    const maskedAadhaar = farmer.aadhaarNumber ? `•••• •••• ${farmer.aadhaarNumber.replace(/\s+/g, '').slice(-4)}` : '•••• •••• 1234';
+    const maskedAadhaar = farmer.maskedAadhaar || (farmer.aadhaarNumber ? `•••• •••• ${farmer.aadhaarNumber.replace(/\s+/g, '').slice(-4)}` : '•••• •••• 1234');
+
+    const farmerData = { ...farmer };
+    delete farmerData.aadhaarNumber;
 
     return {
-      ...farmer,
+      ...farmerData,
       currentBalance,
       outstandingAdvance: totalActiveAdvances,
       totalProcuredQuintals: totalProcuredQtl || farmer.totalProcuredQuintals || 0,
       totalBillsCount: farmerSales.length,
       cibil,
-      aadhaarNumber: farmer.aadhaarNumber || '7891 2345 6789',
       maskedAadhaar,
       aadhaarVerified: farmer.aadhaarVerified !== false
     };
@@ -783,7 +798,6 @@ mockRouter.post('/kyc/digilocker/initiate', (req, res) => {
 
   pendingKycRequests.set(requestId, {
     requestId,
-    aadhaarNumber: rawAadhaar,
     maskedAadhaar: `XXXX-XXXX-${last4Aadhaar}`,
     phone: phone || '',
     name: name || '',
@@ -858,9 +872,7 @@ mockRouter.post('/kyc/digilocker/verify-otp', (req, res) => {
 mockRouter.post('/farmers', (req, res) => {
   const body = req.body;
   const rawAadhaar = (body.aadhaarNumber || '').replace(/[^0-9]/g, '');
-  const formattedAadhaar = rawAadhaar.length >= 12
-    ? `${rawAadhaar.slice(0, 4)} ${rawAadhaar.slice(4, 8)} ${rawAadhaar.slice(8, 12)}`
-    : (body.aadhaarNumber || '7891 2345 6789');
+  const maskedAadhaar = body.maskedAadhaar || (rawAadhaar.length >= 12 ? `XXXX-XXXX-${rawAadhaar.slice(-4)}` : (rawAadhaar.length >= 4 ? `XXXX-XXXX-${rawAadhaar.slice(-4)}` : 'XXXX-XXXX-6789'));
 
   const newFarmer = {
     _id: 'frm_' + String(Date.now()).slice(-6),
@@ -868,8 +880,7 @@ mockRouter.post('/farmers', (req, res) => {
     name: body.name || 'Unknown Farmer',
     fatherName: body.fatherName || '',
     phone: body.phone || '',
-    aadhaarNumber: formattedAadhaar,
-    maskedAadhaar: body.maskedAadhaar || (rawAadhaar.length >= 12 ? `XXXX-XXXX-${rawAadhaar.slice(-4)}` : 'XXXX-XXXX-6789'),
+    maskedAadhaar,
     aadhaarVerified: true,
     isKycVerified: Boolean(body.isKycVerified || body.kycRef),
     kycRef: body.kycRef || ('DL-2026-' + String(Date.now()).slice(-6)),
@@ -894,7 +905,7 @@ mockRouter.post('/farmers', (req, res) => {
     _id: 'aud_' + Date.now(),
     action: 'REGISTER_FARMER',
     actor: 'Administrator',
-    summary: `Registered farmer ${newFarmer.name} (Aadhaar: ${newFarmer.aadhaarNumber}) from ${newFarmer.village}`,
+    summary: `Registered farmer ${newFarmer.name} (Aadhaar: ${newFarmer.maskedAadhaar}) from ${newFarmer.village}`,
     timestamp: new Date().toISOString()
   });
   res.json({ success: true, data: newFarmer, message: 'Farmer registered successfully with Aadhaar verification.' });
@@ -997,17 +1008,19 @@ mockRouter.get('/farmers/:id/360', (req, res) => {
   timeline.sort((a, b) => new Date(b.date) - new Date(a.date));
 
   const cibil = calculateFarmerCibil(farmer, farmerSales, farmerPurchases, farmerLoans);
-  const maskedAadhaar = farmer.aadhaarNumber ? `•••• •••• ${farmer.aadhaarNumber.replace(/\s+/g, '').slice(-4)}` : '•••• •••• 1234';
+  const maskedAadhaar = farmer.maskedAadhaar || (farmer.aadhaarNumber ? `•••• •••• ${farmer.aadhaarNumber.replace(/\s+/g, '').slice(-4)}` : '•••• •••• 1234');
+
+  const farmerData = { ...farmer };
+  delete farmerData.aadhaarNumber;
 
   res.json({
     success: true,
     data: {
       farmer: {
-        ...farmer,
+        ...farmerData,
         currentBalance: currentNetBalance,
         outstandingAdvance: activeAdvanceBalance,
         cibil,
-        aadhaarNumber: farmer.aadhaarNumber || '7891 2345 6789',
         maskedAadhaar,
         aadhaarVerified: farmer.aadhaarVerified !== false
       },
@@ -1227,8 +1240,10 @@ mockRouter.post('/sales', (req, res) => {
     (body.customerPhone && f.phone === body.customerPhone.trim())
   );
 
+  const accessKey = crypto.randomBytes(16).toString('hex');
   const newSale = {
     _id: 'sale_' + String(Date.now()).slice(-6),
+    accessKey,
     invoiceNo: invNum,
     invoiceNumber: invNum,
     date: new Date().toISOString(),
@@ -1253,6 +1268,7 @@ mockRouter.post('/sales', (req, res) => {
 
   const newInvoice = {
     _id: 'inv_' + String(Date.now()).slice(-6),
+    accessKey,
     invoiceCode: invNum,
     sale: newSale._id,
     grandTotal: total,
@@ -2174,12 +2190,13 @@ mockRouter.get('/export/farmers', (_req, res) => {
 
   const rows = farmers.map(f => {
     const cibil = (f.cibil && f.cibil.score) ? f.cibil : calculateFarmerCibil(f);
+    const maskedAcct = f.accountNumber ? `••••••••${String(f.accountNumber).slice(-4)}` : '';
     return [
       f.farmerCode || '',
       f.name || '',
       f.fatherName || '',
       f.phone || '',
-      f.aadhaarNumber || '',
+      f.maskedAadhaar || '•••• •••• 1234',
       'Verified ✓',
       cibil.score || 750,
       cibil.rating || 'Good',
@@ -2193,7 +2210,7 @@ mockRouter.get('/export/farmers', (_req, res) => {
       f.outstandingAdvance || 0,
       f.currentBalance || 0,
       f.bankName || '',
-      f.accountNumber || '',
+      maskedAcct,
       f.ifscCode || '',
       new Date(f.createdAt || Date.now()).toLocaleDateString('en-IN')
     ];
@@ -2231,10 +2248,10 @@ mockRouter.get('/farmers/:id/export-csv', (req, res) => {
     ['FARMER PROFILE INFORMATION'],
     ['Farmer Code', farmer.farmerCode || '', 'Full Name', farmer.name],
     ['Phone', farmer.phone || '', 'Father Name', farmer.fatherName || ''],
-    ['Aadhaar Number', farmer.aadhaarNumber || '', 'Aadhaar Status', 'UIDAI Verified ✓'],
+    ['Aadhaar Number', farmer.maskedAadhaar || '•••• •••• 1234', 'Aadhaar Status', 'UIDAI Verified ✓'],
     ['Village', farmer.village || '', 'District', farmer.district || ''],
     ['Land Acres', farmer.landAcres || 0, 'Primary Crop', farmer.primaryCrop || ''],
-    ['Bank Name', farmer.bankName || '', 'Account No.', farmer.accountNumber || '', 'IFSC', farmer.ifscCode || ''],
+    ['Bank Name', farmer.bankName || '', 'Account No.', farmer.accountNumber ? `••••••••${String(farmer.accountNumber).slice(-4)}` : '', 'IFSC', farmer.ifscCode || ''],
     ['CIBIL Credit Score', `${cibil.score}/900 (${cibil.rating})`, 'Risk Assessment', cibil.riskLevel],
     ['Lending Policy', cibil.recommendation],
     [''],
@@ -2415,8 +2432,10 @@ mockRouter.post('/sales', (req, res) => {
     prod.currentStock = Math.max(0, prod.currentStock - qty);
   }
 
+  const accessKey = crypto.randomBytes(16).toString('hex');
   const newSale = {
     _id: 'sale_' + String(Date.now()).slice(-6),
+    accessKey,
     saleCode: 'SL-2026-' + Math.floor(100 + Math.random() * 900),
     party: partyId,
     grandTotal,
@@ -2426,6 +2445,7 @@ mockRouter.post('/sales', (req, res) => {
   };
   const newInvoice = {
     _id: 'inv_' + String(Date.now()).slice(-6),
+    accessKey,
     invoiceCode: 'INV-2026-' + Math.floor(100 + Math.random() * 900),
     sale: newSale._id,
     grandTotal,
