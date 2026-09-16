@@ -535,18 +535,39 @@ export async function onRequest(context) {
     let body = {};
     try { body = await request.json(); } catch (e) {}
     const { requestId, otp, name, fatherName, village, district, state } = body;
-    let pendingKyc = await getStore(env, 'pendingKyc', {});
-    const pending = pendingKyc[requestId];
-    const cleanOtp = String(otp || '').trim();
-    const isMatch = (pending && pending.demoOtp === cleanOtp) || cleanOtp === '123456' || cleanOtp === '000000';
-
-    if (!isMatch) {
-      return jsonResponse({ success: false, message: 'Invalid OTP. Please enter the correct 6-digit OTP received on your mobile.' }, 400);
+    if (!requestId || !otp) {
+      return jsonResponse({ success: false, message: 'Request ID and OTP are required.' }, 400);
     }
 
-    const last4 = pending ? (pending.maskedAadhaar ? pending.maskedAadhaar.slice(-4) : '6789') : '6789';
+    let pendingKyc = await getStore(env, 'pendingKyc', {});
+    const pending = pendingKyc[requestId];
+    if (!pending) {
+      return jsonResponse({ success: false, message: 'Invalid or expired verification session. Please initiate KYC again.' }, 400);
+    }
+
+    const cleanOtp = String(otp || '').trim();
+    pending.attempts = (pending.attempts || 0) + 1;
+
+    if (pending.attempts > 3) {
+      delete pendingKyc[requestId];
+      await saveStore(env, 'pendingKyc', pendingKyc);
+      return jsonResponse({ success: false, message: 'Too many incorrect OTP attempts. Session revoked for security.' }, 400);
+    }
+
+    // Strictly verify against the issued OTP - NO static bypass codes
+    const isMatch = pending.demoOtp === cleanOtp;
+
+    if (!isMatch) {
+      await saveStore(env, 'pendingKyc', pendingKyc);
+      return jsonResponse({
+        success: false,
+        message: `Invalid OTP. Please enter the correct 6-digit OTP received on your mobile. (${3 - pending.attempts} attempt(s) remaining)`
+      }, 400);
+    }
+
+    const last4 = pending.maskedAadhaar ? pending.maskedAadhaar.slice(-4) : '6789';
     const verifiedData = {
-      name: (pending && pending.name) || name || 'Ramesh Chandra Sahu',
+      name: pending.name || name || 'Ramesh Chandra Sahu',
       fatherName: fatherName || 'Birendra Sahu',
       dob: '15/07/1984',
       gender: 'M',
@@ -554,17 +575,15 @@ export async function onRequest(context) {
       district: district || 'Nabarangpur',
       state: state || 'Odisha',
       pincode: '764076',
-      maskedAadhaar: pending ? pending.maskedAadhaar : `XXXX-XXXX-${last4}`,
+      maskedAadhaar: pending.maskedAadhaar || `XXXX-XXXX-${last4}`,
       kycRef: 'DL-GOV-2026-' + Math.floor(100000 + Math.random() * 900000),
       verifiedAt: new Date().toISOString(),
       status: 'VERIFIED',
       issuer: 'DigiLocker / UIDAI (Govt. of India)'
     };
 
-    if (pendingKyc[requestId]) {
-      delete pendingKyc[requestId];
-      await saveStore(env, 'pendingKyc', pendingKyc);
-    }
+    delete pendingKyc[requestId];
+    await saveStore(env, 'pendingKyc', pendingKyc);
 
     return jsonResponse({
       success: true,

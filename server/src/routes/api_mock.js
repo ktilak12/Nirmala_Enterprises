@@ -828,14 +828,29 @@ mockRouter.post('/kyc/digilocker/verify-otp', (req, res) => {
   }
 
   const pending = pendingKycRequests.get(requestId);
-  const cleanOtp = String(otp).trim();
-  const isMatch = (pending && pending.demoOtp === cleanOtp) || cleanOtp === '123456' || cleanOtp === '000000';
-
-  if (!isMatch) {
-    return res.status(400).json({ success: false, message: 'Invalid OTP. Please enter the correct 6-digit OTP received on your mobile.' });
+  if (!pending) {
+    return res.status(400).json({ success: false, message: 'Invalid or expired verification session. Please initiate KYC again.' });
   }
 
-  const last4 = pending ? pending.aadhaarNumber.slice(-4) : '6789';
+  const cleanOtp = String(otp).trim();
+  pending.attempts = (pending.attempts || 0) + 1;
+
+  if (pending.attempts > 3) {
+    pendingKycRequests.delete(requestId);
+    return res.status(400).json({ success: false, message: 'Too many incorrect OTP attempts. Session revoked for security.' });
+  }
+
+  // Strictly verify against the issued OTP - NO static bypass codes
+  const isMatch = pending.demoOtp === cleanOtp;
+
+  if (!isMatch) {
+    return res.status(400).json({
+      success: false,
+      message: `Invalid OTP. Please enter the correct 6-digit OTP received on your mobile. (${3 - pending.attempts} attempt(s) remaining)`
+    });
+  }
+
+  const last4 = pending.maskedAadhaar ? pending.maskedAadhaar.slice(-4) : '6789';
   const verifiedData = {
     name: (pending && pending.name) || name || 'Ramesh Chandra Sahu',
     fatherName: fatherName || 'Birendra Sahu',
@@ -845,12 +860,14 @@ mockRouter.post('/kyc/digilocker/verify-otp', (req, res) => {
     district: district || 'Nabarangpur',
     state: state || 'Odisha',
     pincode: '764076',
-    maskedAadhaar: pending ? pending.maskedAadhaar : `XXXX-XXXX-${last4}`,
+    maskedAadhaar: pending.maskedAadhaar || `XXXX-XXXX-${last4}`,
     kycRef: 'DL-GOV-2026-' + Math.floor(100000 + Math.random() * 900000),
     verifiedAt: new Date().toISOString(),
     status: 'VERIFIED',
     issuer: 'DigiLocker / UIDAI (Govt. of India)'
   };
+
+  pendingKycRequests.delete(requestId);
 
   auditLogs.unshift({
     _id: 'aud_' + Date.now(),
@@ -1443,11 +1460,17 @@ mockRouter.get('/whatsapp/status', (_req, res) => {
 });
 
 mockRouter.post('/whatsapp/settings', (req, res) => {
+  if (req.user?.role !== 'SUPER_ADMIN') {
+    return res.status(403).json({ success: false, message: 'Forbidden: Super Administrator privilege required.' });
+  }
   const updated = whatsappGateway.updateSettings(req.body);
   res.json({ success: true, settings: updated, message: 'WhatsApp Gateway settings updated.' });
 });
 
-mockRouter.post('/whatsapp/disconnect', async (_req, res) => {
+mockRouter.post('/whatsapp/disconnect', async (req, res) => {
+  if (req.user?.role !== 'SUPER_ADMIN') {
+    return res.status(403).json({ success: false, message: 'Forbidden: Super Administrator privilege required.' });
+  }
   const result = await whatsappGateway.disconnect();
   res.json(result);
 });
@@ -1457,8 +1480,12 @@ mockRouter.get('/whatsapp/outbox', (_req, res) => {
 });
 
 mockRouter.post('/whatsapp/test', async (req, res) => {
+  if (req.user?.role !== 'SUPER_ADMIN') {
+    return res.status(403).json({ success: false, message: 'Forbidden: Super Administrator privilege required.' });
+  }
   const status = whatsappGateway.getStatus();
-  const targetPhone = req.body.phone || status.adminPhone || '9777986964';
+  // Strictly constrain test messaging to the verified administrator phone
+  const targetPhone = status.adminPhone || process.env.SUPER_ADMIN_PHONE || '9777986964';
   const testMsg = `🌾 *NIRMALA ENTERPRISES ERP* 🌾\n━━━━━━━━━━━━━━━━━━━━━\n✅ *WhatsApp Gateway Test Message*\nConnected device verified.\nTime: ${new Date().toLocaleTimeString('en-IN')}\nSuper Admin: ${targetPhone}\n━━━━━━━━━━━━━━━━━━━━━\n_Automated Background Gateway Active_`;
   const result = await whatsappGateway.sendBackgroundMessage(targetPhone, testMsg);
   res.json({ success: result.success, result, targetPhone });
