@@ -30,6 +30,13 @@ if (isProduction && jwtSecret.length < 32) {
   throw new Error('JWT_SECRET must be at least 32 characters in production.');
 }
 
+if (isProduction) {
+  const seedPass = required('SEED_ADMIN_PASSWORD');
+  if (seedPass.length < 10) {
+    throw new Error('SEED_ADMIN_PASSWORD must be at least 10 characters in production.');
+  }
+}
+
 export const env = {
   nodeEnv: process.env.NODE_ENV ?? 'development',
   isProduction,
@@ -43,7 +50,7 @@ export const env = {
     dotenv.config({ path: path.join(serverRoot, '.env'), override: true, quiet: true });
     return {
       email: process.env.SEED_ADMIN_EMAIL ?? 'admin@nirmalaenterprises.in',
-      password: process.env.SEED_ADMIN_PASSWORD ?? 'Admin@12345',
+      password: process.env.SEED_ADMIN_PASSWORD ?? '',
       name: process.env.SEED_ADMIN_NAME ?? 'System Administrator',
     };
   },
