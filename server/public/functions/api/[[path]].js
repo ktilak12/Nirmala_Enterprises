@@ -8,6 +8,7 @@ let memoryStore = {
   sales: [
     {
       _id: 'sale_demo_001',
+      accessKey: 'ak_demo_001_9f8a2b3c4d5e6f7a',
       invoiceNo: 'INV-2026-001',
       invoiceNumber: 'INV-2026-001',
       invoiceCode: 'INV-2026-001',
@@ -77,6 +78,7 @@ let memoryStore = {
     },
     {
       _id: 'sale_demo_002',
+      accessKey: 'ak_demo_002_1a2b3c4d5e6f7a8b',
       invoiceNo: 'INV-2026-002',
       invoiceNumber: 'INV-2026-002',
       invoiceCode: 'INV-2026-002',
@@ -256,15 +258,19 @@ export async function onRequest(context) {
     });
   }
 
-  // Public Invoice / Bill lookup by ID or Invoice Number (e.g. /invoice/INV-2026-001 or /admin/invoices/:id)
-  if (method === 'GET' && (path.startsWith('/api/sales/') || path.startsWith('/api/invoices/') || path.startsWith('/api/public/invoices/'))) {
+  // Public Invoice / Bill lookup by ID or Invoice Number with required access key (e.g. /api/public/invoices/INV-2026-001?key=...)
+  if (method === 'GET' && path.startsWith('/api/public/invoices/')) {
     const cleanPath = path.replace(/\/+$/, '');
     const parts = cleanPath.split('/').filter(Boolean);
     const lastPart = decodeURIComponent(parts[parts.length - 1] || '');
-    if (lastPart && lastPart !== 'sales' && lastPart !== 'invoices') {
+    if (lastPart && lastPart !== 'invoices') {
       let sales = await getStore(env, 'sales', []);
       const found = sales.find(s => s._id === lastPart || s.invoiceNo === lastPart || s.invoiceNumber === lastPart || s.invoiceCode === lastPart);
       if (found) {
+        const reqKey = url.searchParams.get('key') || request.headers.get('x-invoice-key') || '';
+        if (found.accessKey && reqKey !== found.accessKey) {
+          return jsonResponse({ success: false, message: 'Unauthorized. Valid invoice access key required to view customer receipt.' }, 401);
+        }
         return jsonResponse({ success: true, data: found, sale: found, invoice: found });
       }
       return jsonResponse({ success: false, message: 'Invoice not found.' }, 404);
@@ -729,6 +735,7 @@ export async function onRequest(context) {
     let sales = await getStore(env, 'sales', [
       {
         _id: 'sale_demo_001',
+        accessKey: 'ak_demo_001_9f8a2b3c4d5e6f7a',
         invoiceNo: 'INV-2026-001',
         invoiceNumber: 'INV-2026-001',
         invoiceCode: 'INV-2026-001',
@@ -798,6 +805,7 @@ export async function onRequest(context) {
       },
       {
         _id: 'sale_demo_002',
+        accessKey: 'ak_demo_002_1a2b3c4d5e6f7a8b',
         invoiceNo: 'INV-2026-002',
         invoiceNumber: 'INV-2026-002',
         invoiceCode: 'INV-2026-002',
@@ -860,8 +868,10 @@ export async function onRequest(context) {
 
       const grandTotal = Number(body.grandTotal !== undefined ? body.grandTotal : body.total || 0);
       const invCode = 'INV-' + new Date().getFullYear() + '-' + String(sales.length + 1).padStart(3, '0');
+      const accessKey = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID().replace(/-/g, '') : Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join('');
       const newSale = {
         _id: 'sale_' + Date.now(),
+        accessKey,
         invoiceNo: invCode,
         invoiceNumber: invCode,
         invoiceCode: invCode,
