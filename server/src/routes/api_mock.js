@@ -3,8 +3,18 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import rateLimit from 'express-rate-limit';
 import { authenticate } from '../middleware/auth.js';
 import { whatsappGateway } from '../services/whatsappGateway.js';
+
+// Rate limiter for WhatsApp test endpoint: max 3 test messages per 5 minutes per IP
+const whatsappTestLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000, // 5 minutes
+  max: 3,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many WhatsApp test requests. Please wait 5 minutes before trying again.' }
+});
 
 // Auto-initialize background WhatsApp Gateway socket
 whatsappGateway.initialize().catch(err => {
@@ -1455,11 +1465,20 @@ mockRouter.post('/sales/:id/payments', (req, res) => {
 });
 
 // --- WHATSAPP GATEWAY ENDPOINTS ---
-mockRouter.get('/whatsapp/status', (_req, res) => {
-  res.json(whatsappGateway.getStatus());
+// All WhatsApp endpoints require authentication. Status and outbox are
+// restricted to SUPER_ADMIN to prevent QR-code session theft and message leakage.
+
+mockRouter.get('/whatsapp/status', authenticate, (req, res) => {
+  const fullStatus = whatsappGateway.getStatus();
+  // Only SUPER_ADMIN receives the QR code data URL — it grants full WhatsApp session access
+  if (req.user?.role !== 'SUPER_ADMIN') {
+    const { qrDataUrl: _stripped, ...safeStatus } = fullStatus;
+    return res.json({ ...safeStatus, qrDataUrl: null });
+  }
+  res.json(fullStatus);
 });
 
-mockRouter.post('/whatsapp/settings', (req, res) => {
+mockRouter.post('/whatsapp/settings', authenticate, (req, res) => {
   if (req.user?.role !== 'SUPER_ADMIN') {
     return res.status(403).json({ success: false, message: 'Forbidden: Super Administrator privilege required.' });
   }
@@ -1467,7 +1486,7 @@ mockRouter.post('/whatsapp/settings', (req, res) => {
   res.json({ success: true, settings: updated, message: 'WhatsApp Gateway settings updated.' });
 });
 
-mockRouter.post('/whatsapp/disconnect', async (req, res) => {
+mockRouter.post('/whatsapp/disconnect', authenticate, async (req, res) => {
   if (req.user?.role !== 'SUPER_ADMIN') {
     return res.status(403).json({ success: false, message: 'Forbidden: Super Administrator privilege required.' });
   }
@@ -1475,11 +1494,16 @@ mockRouter.post('/whatsapp/disconnect', async (req, res) => {
   res.json(result);
 });
 
-mockRouter.get('/whatsapp/outbox', (_req, res) => {
+// Message outbox contains customer phone numbers and message content — SUPER_ADMIN only
+mockRouter.get('/whatsapp/outbox', authenticate, (req, res) => {
+  if (req.user?.role !== 'SUPER_ADMIN') {
+    return res.status(403).json({ success: false, message: 'Forbidden: Super Administrator privilege required.' });
+  }
   res.json({ success: true, data: whatsappGateway.getOutbox() });
 });
 
-mockRouter.post('/whatsapp/test', async (req, res) => {
+// Rate-limited: max 3 test messages per IP per 5 minutes to prevent WhatsApp spam/ban
+mockRouter.post('/whatsapp/test', authenticate, whatsappTestLimiter, async (req, res) => {
   if (req.user?.role !== 'SUPER_ADMIN') {
     return res.status(403).json({ success: false, message: 'Forbidden: Super Administrator privilege required.' });
   }
