@@ -36,25 +36,15 @@ function loadFromFile(filename, defaultData) {
 }
 
 function getCloudflareToken() {
-  if (process.env.CLOUDFLARE_API_TOKEN) return process.env.CLOUDFLARE_API_TOKEN;
-  try {
-    const configDir = path.join(process.env.APPDATA || '', 'xdg.config', '.wrangler', 'config');
-    const cfgPath = path.join(configDir, 'default.toml');
-    if (fs.existsSync(cfgPath)) {
-      const cfg = fs.readFileSync(cfgPath, 'utf8');
-      const tokenMatch = cfg.match(/oauth_token\s*=\s*"([^"]+)"/) || cfg.match(/api_token\s*=\s*"([^"]+)"/);
-      if (tokenMatch) return tokenMatch[1];
-    }
-  } catch (e) {}
-  return null;
+  return process.env.CLOUDFLARE_API_TOKEN || null;
 }
 
-const CF_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID || 'a30c1f804614338bd3729e63e41ea098';
-const CF_KV_NAMESPACE_ID = process.env.CLOUDFLARE_KV_NAMESPACE_ID || '4af621dc60e240cfbdc450e8800af102';
+const CF_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID || '';
+const CF_KV_NAMESPACE_ID = process.env.CLOUDFLARE_KV_NAMESPACE_ID || '';
 
 async function syncKeyToCloudflareKV(key, data) {
   const token = getCloudflareToken();
-  if (!token) return;
+  if (!token || !CF_ACCOUNT_ID || !CF_KV_NAMESPACE_ID) return;
   try {
     const url = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/storage/kv/namespaces/${CF_KV_NAMESPACE_ID}/values/${key}`;
     const res = await fetch(url, {
@@ -75,7 +65,7 @@ async function syncKeyToCloudflareKV(key, data) {
 
 async function fetchKeyFromCloudflareKV(key) {
   const token = getCloudflareToken();
-  if (!token) return null;
+  if (!token || !CF_ACCOUNT_ID || !CF_KV_NAMESPACE_ID) return null;
   try {
     const url = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/storage/kv/namespaces/${CF_KV_NAMESPACE_ID}/values/${key}`;
     const res = await fetch(url, {
