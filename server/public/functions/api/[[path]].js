@@ -168,6 +168,47 @@ async function saveStore(env, key, data) {
   }
 }
 
+async function signEdgeToken(payload, secret) {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw',
+    enc.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  const dataStr = JSON.stringify({ ...payload, exp: Date.now() + 12 * 3600 * 1000 });
+  const b64Data = btoa(unescape(encodeURIComponent(dataStr)));
+  const signature = await crypto.subtle.sign('HMAC', key, enc.encode(b64Data));
+  const b64Sig = btoa(String.fromCharCode(...new Uint8Array(signature)));
+  return `${b64Data}.${b64Sig}`;
+}
+
+async function verifyEdgeToken(token, secret) {
+  if (!token || typeof token !== 'string' || !token.includes('.')) return null;
+  const parts = token.split('.');
+  if (parts.length !== 2) return null;
+  const [b64Data, b64Sig] = parts;
+  try {
+    const enc = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+      'raw',
+      enc.encode(secret),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['verify']
+    );
+    const sigBytes = Uint8Array.from(atob(b64Sig), c => c.charCodeAt(0));
+    const isValid = await crypto.subtle.verify('HMAC', key, sigBytes, enc.encode(b64Data));
+    if (!isValid) return null;
+    const data = JSON.parse(decodeURIComponent(escape(atob(b64Data))));
+    if (data.exp && Date.now() > data.exp) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
 export async function onRequest(context) {
   const { request, env } = context;
   const url = new URL(request.url);
@@ -234,6 +275,8 @@ export async function onRequest(context) {
   // 2. AUTHENTICATION (Login & Current User)
   // -------------------------------------------------------------------------
 
+  const edgeSecret = env?.JWT_SECRET || 'nirmala-cf-edge-secret-2026';
+
   if (path === '/api/auth/login' && method === 'POST') {
     let body = {};
     try { body = await request.json(); } catch (e) {}
@@ -241,17 +284,28 @@ export async function onRequest(context) {
     const username = (body.username || body.email || '').trim().toLowerCase();
     const password = String(body.password || '');
 
-    if (
-      (username === 'nirosan34' || username === 'admin@nirmalaenterprises.in' || username === 'superadmin@nirmalaenterprises.in') &&
-      (password === 'Tanvika@647652' || password === 'Admin@12345')
-    ) {
+    const validAdminUser = String(env?.SEED_ADMIN_EMAIL || env?.ADMIN_EMAIL || 'nirosan34').trim().toLowerCase();
+    const validAdminPass = String(env?.SEED_ADMIN_PASSWORD || env?.ADMIN_PASSWORD || '');
+
+    let authenticated = false;
+    if (validAdminPass && username === validAdminUser && password === validAdminPass) {
+      authenticated = true;
+    }
+
+    if (authenticated) {
+      const token = await signEdgeToken({
+        id: '65f000000000000000000001',
+        email: validAdminUser,
+        role: 'SUPER_ADMIN'
+      }, edgeSecret);
+
       return jsonResponse({
         success: true,
-        token: 'cf-pages-jwt-token-superadmin-' + Date.now(),
+        token,
         user: {
           id: '65f000000000000000000001',
           name: 'Super Admin',
-          email: 'nirosan34',
+          email: validAdminUser,
           role: 'SUPER_ADMIN',
           roleLabel: 'Super Administrator',
           permissions: ['*'],
@@ -272,14 +326,19 @@ export async function onRequest(context) {
     return jsonResponse({ success: false, message: 'Sign in to continue.' }, 401);
   }
 
+  const tokenPayload = await verifyEdgeToken(token, edgeSecret);
+  if (!tokenPayload) {
+    return jsonResponse({ success: false, message: 'Invalid or expired authentication token.' }, 401);
+  }
+
   if (path === '/api/auth/me') {
     return jsonResponse({
       success: true,
       user: {
-        id: '65f000000000000000000001',
+        id: tokenPayload.id || '65f000000000000000000001',
         name: 'Super Admin',
-        email: 'nirosan34',
-        role: 'SUPER_ADMIN',
+        email: tokenPayload.email || 'nirosan34',
+        role: tokenPayload.role || 'SUPER_ADMIN',
         roleLabel: 'Super Administrator',
         permissions: ['*'],
         mustChangePassword: false,
