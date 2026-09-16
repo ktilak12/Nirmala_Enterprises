@@ -1,11 +1,13 @@
 import { Router } from 'express';
+import mongoose from 'mongoose';
 import rateLimit from 'express-rate-limit';
 import { Category } from '../models/Catalog.js';
 import { Product } from '../models/Product.js';
+import { Invoice } from '../models/Invoice.js';
 import { validate, validateQuery } from '../middleware/validate.js';
 import { submitEnquiry } from '../services/enquiries.js';
 import { getPublicSettings } from '../services/settings.js';
-import { asyncHandler } from '../utils/errors.js';
+import { asyncHandler, unauthorized, notFound } from '../utils/errors.js';
 import { contactSchema, publicProductsQuery } from '../validators/index.js';
 
 export const publicRouter = Router();
@@ -118,3 +120,33 @@ publicRouter.post(
     });
   }),
 );
+
+/**
+ * Public invoice lookup for customer WhatsApp receipt links.
+ * Requires cryptographically unguessable ?key= matching sale/invoice accessKey.
+ */
+publicRouter.get(
+  '/invoices/:id',
+  asyncHandler(async (req, res) => {
+    const key = req.query.key || req.headers['x-invoice-key'];
+    const { id } = req.params;
+    if (!key) {
+      throw unauthorized('Unauthorized access. Valid invoice key required.');
+    }
+    const filter = {
+      $or: [
+        { invoiceCode: id.toUpperCase() },
+        { saleCode: id.toUpperCase() }
+      ]
+    };
+    if (mongoose.Types.ObjectId.isValid(id)) {
+      filter.$or.push({ _id: id });
+    }
+    const invoice = await Invoice.findOne(filter).lean();
+    if (!invoice || invoice.accessKey !== key) {
+      throw unauthorized('Unauthorized access or invoice not found.');
+    }
+    res.json({ invoice });
+  }),
+);
+

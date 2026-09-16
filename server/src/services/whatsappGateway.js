@@ -219,7 +219,8 @@ class WhatsAppGatewayService {
   async sendSilentSaleAlerts(sale, host = 'localhost:5000', protocol = 'http') {
     const settings = getSettings();
     const adminPhone = settings.adminPhone || '9777986964';
-    const invoiceUrl = `${protocol}://${host}/invoice/${sale.invoiceNo}`;
+    const accessQuery = sale.accessKey ? `?key=${sale.accessKey}` : '';
+    const invoiceUrl = `${protocol}://${host}/invoice/${sale.invoiceNo}${accessQuery}`;
 
     const itemsSummary = (sale.items || [])
       .map((it, idx) => {
