@@ -513,7 +513,6 @@ export async function onRequest(context) {
     let pendingKyc = await getStore(env, 'pendingKyc', {});
     pendingKyc[requestId] = {
       requestId,
-      aadhaarNumber: rawAadhaar,
       maskedAadhaar: `XXXX-XXXX-${last4Aadhaar}`,
       phone: body.phone || '',
       name: body.name || '',
@@ -545,7 +544,7 @@ export async function onRequest(context) {
       return jsonResponse({ success: false, message: 'Invalid OTP. Please enter the correct 6-digit OTP received on your mobile.' }, 400);
     }
 
-    const last4 = pending ? pending.aadhaarNumber.slice(-4) : '6789';
+    const last4 = pending ? (pending.maskedAadhaar ? pending.maskedAadhaar.slice(-4) : '6789') : '6789';
     const verifiedData = {
       name: (pending && pending.name) || name || 'Ramesh Chandra Sahu',
       fatherName: fatherName || 'Birendra Sahu',
@@ -586,14 +585,14 @@ export async function onRequest(context) {
       let body = {};
       try { body = await request.json(); } catch (e) {}
       const rawAadhaar = (body.aadhaarNumber || '').replace(/[^0-9]/g, '');
+      const maskedAadhaar = body.maskedAadhaar || (rawAadhaar.length >= 12 ? `XXXX-XXXX-${rawAadhaar.slice(-4)}` : (rawAadhaar.length >= 4 ? `XXXX-XXXX-${rawAadhaar.slice(-4)}` : 'XXXX-XXXX-6789'));
       const newFarmer = {
         _id: 'frm_' + Date.now(),
         farmerCode: body.farmerCode || 'FRM-' + Math.floor(1000 + Math.random() * 9000),
         name: body.name || 'New Farmer',
         fatherName: body.fatherName || '',
         phone: body.phone || '',
-        aadhaarNumber: body.aadhaarNumber || '',
-        maskedAadhaar: body.maskedAadhaar || (rawAadhaar.length >= 12 ? `XXXX-XXXX-${rawAadhaar.slice(-4)}` : 'XXXX-XXXX-6789'),
+        maskedAadhaar,
         aadhaarVerified: true,
         isKycVerified: Boolean(body.isKycVerified || body.kycRef),
         kycRef: body.kycRef || ('DL-2026-' + String(Date.now()).slice(-6)),
@@ -605,7 +604,7 @@ export async function onRequest(context) {
         landAcres: Number(body.landAcres || 0),
         primaryCrop: body.primaryCrop || 'Maize',
         bankName: body.bankName || '',
-        accountNumber: body.accountNumber || '',
+        accountNumber: body.accountNumber ? `••••••••${String(body.accountNumber).slice(-4)}` : '',
         ifscCode: body.ifscCode || '',
         outstandingAdvance: Number(body.outstandingAdvance || 0),
         totalProcuredQuintals: Number(body.totalProcuredQuintals || 0),
@@ -651,7 +650,12 @@ export async function onRequest(context) {
         (f.farmerCode && f.farmerCode.toLowerCase().includes(q))
       );
     }
-    return jsonResponse({ success: true, data: filtered, rows: filtered, total: filtered.length });
+    const sanitized = filtered.map(f => {
+      const copy = { ...f };
+      delete copy.aadhaarNumber;
+      return copy;
+    });
+    return jsonResponse({ success: true, data: sanitized, rows: sanitized, total: sanitized.length });
   }
 
   // -------------------------------------------------------------------------
