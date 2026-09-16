@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import mongoose from 'mongoose';
 import { env } from './config/env.js';
 import { errorHandler, notFoundHandler } from './middleware/error.js';
 import { apiRouter } from './routes/index.js';
@@ -68,9 +69,35 @@ export function createApp() {
     res.json({ ok: true, service: 'nirmala-api', env: env.nodeEnv });
   });
 
+  // Universal API rate limiter applies to ALL /api requests
+  app.use('/api', apiLimiter);
   app.use('/api/auth/login', loginLimiter);
-  app.use('/api', mockRouter);
-  app.use('/api', apiLimiter, apiRouter);
+
+  // Dynamic Routing Strategy:
+  // 1. If MongoDB is connected, prioritize apiRouter (ACID multi-document transactions & Zod schemas).
+  // 2. In development (!env.isProduction), fall through to mockRouter if an endpoint is not handled by apiRouter or when DB is offline.
+  // 3. In production, never fallback to unvalidated mock storage.
+  app.use('/api', (req, res, next) => {
+    const isDbConnected = Boolean(mongoose.connection && mongoose.connection.readyState === 1);
+    if (isDbConnected) {
+      return apiRouter(req, res, (err) => {
+        if (err) return next(err);
+        if (!env.isProduction) {
+          return mockRouter(req, res, next);
+        }
+        return next();
+      });
+    }
+
+    if (!env.isProduction) {
+      return mockRouter(req, res, next);
+    }
+
+    return res.status(503).json({
+      success: false,
+      message: 'Database service temporarily unavailable in production mode.',
+    });
+  });
 
   app.use('/api', notFoundHandler);
   app.use(express.static(path.join(currentDirectory, '..', 'public')));
