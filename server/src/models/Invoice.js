@@ -32,6 +32,7 @@ const invoiceItemSchema = new mongoose.Schema(
 const invoiceSchema = new mongoose.Schema(
   {
     invoiceCode: { type: String, required: true, unique: true, uppercase: true, trim: true },
+    accessKey: { type: String, required: true, index: true },
 
     sale: { type: mongoose.Schema.Types.ObjectId, ref: 'Sale', required: true, index: true },
     saleCode: { type: String, required: true },

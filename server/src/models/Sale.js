@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import mongoose from 'mongoose';
 import { moneyField, quantityField } from '../utils/money.js';
 
@@ -34,6 +35,12 @@ const saleItemSchema = new mongoose.Schema(
 const saleSchema = new mongoose.Schema(
   {
     saleCode: { type: String, required: true, unique: true, uppercase: true, trim: true },
+    accessKey: {
+      type: String,
+      required: true,
+      default: () => crypto.randomBytes(16).toString('hex'),
+      index: true,
+    },
 
     party: { type: mongoose.Schema.Types.ObjectId, ref: 'Party', required: true, index: true },
     partyName: { type: String, required: true },

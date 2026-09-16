@@ -24,6 +24,7 @@ export async function createInvoiceForSale({ session, sale, party, settings, act
     [
       {
         invoiceCode,
+        accessKey: sale.accessKey,
         sale: sale._id,
         saleCode: sale.saleCode,
         date: sale.date,
