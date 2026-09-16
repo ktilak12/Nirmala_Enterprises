@@ -188,7 +188,12 @@ function csvRow(values) {
 }
 
 function csvCell(value) {
-  const s = String(value ?? '');
+  if (value === null || value === undefined) return '';
+  let s = String(value).trim();
+  // Neutralize CSV formula injection in Microsoft Excel, LibreOffice, and Google Sheets
+  if (/^[=+\-@\t\r]/.test(s)) {
+    s = "'" + s;
+  }
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
