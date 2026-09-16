@@ -5,7 +5,7 @@ import { env } from '../config/env.js';
 import { withTransaction } from '../config/db.js';
 import { permissionsForRole, ROLES } from '../config/permissions.js';
 import { User } from '../models/User.js';
-import { badRequest, conflict, notFound, unauthorized, serviceUnavailable } from '../utils/errors.js';
+import { badRequest, conflict, forbidden, notFound, unauthorized, serviceUnavailable } from '../utils/errors.js';
 import { writeAudit } from './audit.js';
 
 /**
@@ -271,12 +271,20 @@ export async function changeOwnPassword({ user, currentPassword, newPassword, re
 export async function createUser({ payload, actor, req }) {
   assertPasswordAcceptable(payload.password);
 
+  const userRole = Object.values(ROLES).includes(payload.role) ? payload.role : ROLES.SALES_STAFF;
+
+  if (
+    (userRole === ROLES.SUPER_ADMIN || userRole === ROLES.ADMIN) &&
+    actor?.role !== ROLES.SUPER_ADMIN &&
+    actor?.role !== ROLES.ADMIN
+  ) {
+    throw forbidden('Only an Administrator can assign administrative roles.');
+  }
+
   const email = String(payload.email).toLowerCase().trim();
   if (await User.exists({ email })) {
     throw conflict('A user with that email address already exists.');
   }
-
-  const userRole = Object.values(ROLES).includes(payload.role) ? payload.role : ROLES.SUPER_ADMIN;
 
   return withTransaction(async (session) => {
     const [user] = await User.create(
@@ -304,7 +312,7 @@ export async function createUser({ payload, actor, req }) {
       entity: 'User',
       entityId: user._id,
       entityCode: user.email,
-      summary: `Created ${payload.role} account for ${payload.name} (${email})`,
+      summary: `Created ${userRole} account for ${payload.name} (${email})`,
       req,
     });
 
@@ -313,6 +321,14 @@ export async function createUser({ payload, actor, req }) {
 }
 
 export async function updateUser({ userId, payload, actor, req }) {
+  if (
+    (payload.role === ROLES.SUPER_ADMIN || payload.role === ROLES.ADMIN) &&
+    actor?.role !== ROLES.SUPER_ADMIN &&
+    actor?.role !== ROLES.ADMIN
+  ) {
+    throw forbidden('Only an Administrator can assign administrative roles.');
+  }
+
   return withTransaction(async (session) => {
     const user = await User.findById(userId).session(session);
     if (!user) throw notFound('User not found.');
