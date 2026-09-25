@@ -1468,88 +1468,6 @@ Please change the parent <Route path="${M}"> to <Route path="${M==="/"?"*":`${M}
     accountNumber: "",
     ifscCode: ""
   });
-  const [kycLoading, setKycLoading] = w.useState(!1);
-  const [kycRequestId, setKycRequestId] = w.useState("");
-  const [kycOtp, setKycOtp] = w.useState("");
-  const [kycOtpSent, setKycOtpSent] = w.useState(!1);
-  const [kycVerified, setKycVerified] = w.useState(!1);
-  const [kycVerifiedDetails, setKycVerifiedDetails] = w.useState(null);
-
-  const initiateDigiLockerKyc = async () => {
-    const raw = (newFarmer.aadhaarNumber || "").replace(/[^0-9]/g, "");
-    if (raw.length !== 12) {
-      alert("⚠️ Please enter a valid 12-digit Aadhaar number in the Aadhaar field first.");
-      return;
-    }
-    setKycLoading(!0);
-    try {
-      const res = await De.post("/kyc/digilocker/initiate", {
-        aadhaarNumber: raw,
-        phone: newFarmer.phone,
-        name: newFarmer.name
-      });
-      if (res && res.success) {
-        setKycRequestId(res.requestId);
-        setKycOtpSent(!0);
-        if (res.demoOtp) {
-          setKycOtp(res.demoOtp);
-        }
-        alert("📲 " + res.message + (res.demoOtp ? "\n\n[Sandbox Test OTP]: " + res.demoOtp : ""));
-      } else {
-        alert((res && res.message) || "Failed to initiate DigiLocker verification.");
-      }
-    } catch (err) {
-      alert(err.message || "Failed to connect to DigiLocker gateway.");
-    } finally {
-      setKycLoading(!1);
-    }
-  };
-
-  const confirmDigiLockerKyc = async () => {
-    if (!kycOtp || kycOtp.trim().length < 4) {
-      alert("⚠️ Please enter the 6-digit OTP received on mobile.");
-      return;
-    }
-    setKycLoading(!0);
-    try {
-      const res = await De.post("/kyc/digilocker/verify-otp", {
-        requestId: kycRequestId,
-        otp: kycOtp.trim(),
-        name: newFarmer.name,
-        fatherName: newFarmer.fatherName,
-        village: newFarmer.village,
-        district: newFarmer.district,
-        state: newFarmer.state
-      });
-      if (res && res.success && res.data) {
-        const v = res.data;
-        setKycVerified(!0);
-        setKycVerifiedDetails(v);
-        setNewFarmer(prev => ({
-          ...prev,
-          name: v.name || prev.name,
-          fatherName: v.fatherName || prev.fatherName,
-          village: v.village || prev.village,
-          district: v.district || prev.district,
-          state: v.state || prev.state,
-          aadhaarNumber: v.maskedAadhaar || prev.aadhaarNumber,
-          maskedAadhaar: v.maskedAadhaar,
-          isKycVerified: true,
-          kycRef: v.kycRef,
-          kycProvider: "DigiLocker / API Setu"
-        }));
-        alert("✅ Verified with Government of India DigiLocker!\n\nName: " + v.name + "\nRef: " + v.kycRef);
-      } else {
-        alert((res && res.message) || "Invalid OTP or verification failed.");
-      }
-    } catch (err) {
-      alert(err.message || "Verification failed.");
-    } finally {
-      setKycLoading(!1);
-    }
-  };
-
-
   const loadFarmers = async () => {
     try {
       const res = await De.get("/farmers");
@@ -1584,7 +1502,7 @@ Please change the parent <Route path="${M}"> to <Route path="${M==="/"?"*":`${M}
   };
 
   const deleteFarmer = async (farmerId, farmerName) => {
-    if (!window.confirm(`⚠️ ARE YOU SURE YOU WANT TO DELETE THIS FARMER ACCOUNT?\n\nFarmer: ${farmerName}\nID: ${farmerId}\n\nThis will permanently remove the farmer profile, KYC records, and credit passbook from Nirmala ERP.`)) {
+    if (!window.confirm(`⚠️ ARE YOU SURE YOU WANT TO DELETE THIS FARMER ACCOUNT?\n\nFarmer: ${farmerName}\nID: ${farmerId}\n\nThis will permanently remove the farmer profile and credit passbook from Nirmala ERP.`)) {
       return;
     }
     try {
@@ -1785,7 +1703,7 @@ Please change the parent <Route path="${M}"> to <Route path="${M==="/"?"*":`${M}
                 ]}),
                 // Aadhaar masked badge
                 n.jsxs("div", { className: "flex items-center justify-between text-[11px] text-gray-600 pt-1 border-t border-gray-100", children: [
-                  n.jsx("span", { className: "text-gray-400 font-mono", children: "Aadhaar e-KYC:" }),
+                  n.jsx("span", { className: "text-gray-400 font-mono", children: "Aadhaar Card:" }),
                   n.jsxs("span", { className: "font-mono font-bold text-gray-800 flex items-center gap-1", children: [
                     farmer.maskedAadhaar || ("•••• •••• " + (farmer.aadhaarNumber ? farmer.aadhaarNumber.slice(-4) : "1234")),
                     n.jsx("span", { className: "text-emerald-700 text-[10px]", title: "Aadhaar Verified", children: "✓" })
@@ -1884,10 +1802,10 @@ Please change the parent <Route path="${M}"> to <Route path="${M==="/"?"*":`${M}
 
           // Scrollable Body
           n.jsxs("div", { className: "p-6 overflow-y-auto space-y-6 flex-1", children: [
-            // Aadhaar & KYC Verification Row
+            // Aadhaar & Passbook Details Row
             n.jsxs("div", { className: "p-4 rounded-2xl bg-gray-50 border border-gray-200 grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs", children: [
               n.jsxs("div", { children: [
-                n.jsx("span", { className: "text-[10px] text-gray-400 uppercase font-bold block", children: "Aadhaar e-KYC" }),
+                n.jsx("span", { className: "text-[10px] text-gray-400 uppercase font-bold block", children: "Aadhaar Card" }),
                 n.jsxs("span", { className: "font-mono font-bold text-gray-900 text-sm flex items-center gap-1.5", children: [
                   selected360.farmer.aadhaarNumber || selected360.farmer.maskedAadhaar || "7891 2345 6789",
                   n.jsx("span", { className: "px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800", children: "Verified ✓" })
@@ -2104,7 +2022,7 @@ Please change the parent <Route path="${M}"> to <Route path="${M==="/"?"*":`${M}
         children: [
           n.jsxs("div", { className: "flex items-center justify-between pb-3 border-b border-gray-100", children: [
             n.jsxs("div", { children: [
-              n.jsx("h3", { className: "font-display font-bold text-lg text-[#071e27]", children: "Register Farmer (with Aadhaar e-KYC)" }),
+              n.jsx("h3", { className: "font-display font-bold text-lg text-[#071e27]", children: "Register Farmer" }),
               n.jsx("p", { className: "text-xs text-gray-500", children: "Onboard new farmer with land records and bank verification" })
             ]}),
             n.jsx("button", { onClick: () => setRegisterOpen(!1), className: "p-1.5 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-700", children: "✕" })
@@ -2134,100 +2052,6 @@ Please change the parent <Route path="${M}"> to <Route path="${M==="/"?"*":`${M}
                 })
               ]})
             ]}),
-
-            // Phone and Aadhaar Row
-            n.jsxs("div", {
-              className: "p-3.5 rounded-2xl border transition-all " + (kycVerified ? "bg-emerald-50/90 border-emerald-300" : "bg-gradient-to-r from-emerald-50/60 to-teal-50/40 border-emerald-200") + " space-y-2.5",
-              children: [
-                n.jsxs("div", {
-                  className: "flex items-center justify-between",
-                  children: [
-                    n.jsxs("div", {
-                      className: "flex items-center gap-2",
-                      children: [
-                        n.jsx("span", {
-                          className: "w-7 h-7 rounded-xl bg-[#00450d] text-white flex items-center justify-center font-black text-xs shadow-sm",
-                          children: "DL"
-                        }),
-                        n.jsxs("div", {
-                          children: [
-                            n.jsx("h4", {
-                              className: "font-display font-bold text-gray-900 text-xs flex items-center gap-1.5",
-                              children: ["Government DigiLocker e-KYC", n.jsx("span", { className: "text-[10px] px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 font-bold", children: "100% Free" })]
-                            }),
-                            n.jsx("p", {
-                              className: "text-[10px] text-gray-500",
-                              children: "Pull official name & address from UIDAI / DigiLocker via secure OTP"
-                            })
-                          ]
-                        })
-                      ]
-                    }),
-                    kycVerified ? n.jsx("span", {
-                      className: "px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-600 text-white shadow-sm flex items-center gap-1",
-                      children: "Govt. Verified ✓"
-                    }) : n.jsx("span", {
-                      className: "px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800",
-                      children: "API Setu / MeitY"
-                    })
-                  ]
-                }),
-                !kycVerified && !kycOtpSent && n.jsxs("div", {
-                  className: "flex items-center justify-between gap-3 pt-1",
-                  children: [
-                    n.jsx("p", {
-                      className: "text-[11px] text-gray-600",
-                      children: "Enter 12-digit Aadhaar below and click to authenticate via Govt. DigiLocker OTP."
-                    }),
-                    n.jsx("button", {
-                      type: "button",
-                      disabled: kycLoading || !newFarmer.aadhaarNumber || newFarmer.aadhaarNumber.replace(/[^0-9]/g, "").length !== 12,
-                      onClick: initiateDigiLockerKyc,
-                      className: "shrink-0 px-3 py-1.5 rounded-xl bg-[#00450d] hover:bg-[#1b5e20] disabled:bg-gray-300 disabled:cursor-not-allowed text-white text-[11px] font-bold transition-all shadow-sm",
-                      children: kycLoading ? "Sending OTP..." : "Send DigiLocker OTP"
-                    })
-                  ]
-                }),
-                !kycVerified && kycOtpSent && n.jsxs("div", {
-                  className: "flex items-center gap-2 pt-1 animate-in fade-in",
-                  children: [
-                    n.jsx("input", {
-                      type: "text",
-                      maxLength: 6,
-                      value: kycOtp,
-                      onChange: e => setKycOtp(e.target.value),
-                      placeholder: "Enter 6-digit OTP",
-                      className: "w-36 bg-white border border-emerald-300 rounded-xl px-3 py-1.5 text-xs font-mono font-bold tracking-widest outline-none text-center"
-                    }),
-                    n.jsx("button", {
-                      type: "button",
-                      disabled: kycLoading,
-                      onClick: confirmDigiLockerKyc,
-                      className: "px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-[11px] font-bold transition-all shadow-sm",
-                      children: kycLoading ? "Verifying..." : "Confirm & Fetch Data"
-                    }),
-                    n.jsx("button", {
-                      type: "button",
-                      onClick: initiateDigiLockerKyc,
-                      className: "px-2 py-1 text-[10px] text-gray-500 hover:text-gray-800 underline font-medium",
-                      children: "Resend"
-                    })
-                  ]
-                }),
-                kycVerified && kycVerifiedDetails && n.jsxs("div", {
-                  className: "text-[11px] text-emerald-900 bg-white/80 p-2.5 rounded-xl border border-emerald-200 flex items-center justify-between shadow-xs",
-                  children: [
-                    n.jsxs("span", {
-                      children: ["Official Record: ", n.jsx("strong", { children: kycVerifiedDetails.name }), " • S/O ", kycVerifiedDetails.fatherName, " (", kycVerifiedDetails.village, ", ", kycVerifiedDetails.district, ")"]
-                    }),
-                    n.jsxs("span", {
-                      className: "font-mono font-bold text-[10px] text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded",
-                      children: ["Ref: ", kycVerifiedDetails.kycRef]
-                    })
-                  ]
-                })
-              ]
-            }),
 
             n.jsxs("div", { className: "grid grid-cols-2 gap-4", children: [
               n.jsxs("div", { children: [

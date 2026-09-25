@@ -495,104 +495,6 @@ export async function onRequest(context) {
   }
 
   // -------------------------------------------------------------------------
-  // 4B. DIGILOCKER & GOVT E-KYC (100% FREE VIA API SETU)
-  // -------------------------------------------------------------------------
-
-  if (path === '/api/kyc/digilocker/initiate' && method === 'POST') {
-    let body = {};
-    try { body = await request.json(); } catch (e) {}
-    const rawAadhaar = (body.aadhaarNumber || '').replace(/[^0-9]/g, '');
-    if (rawAadhaar.length !== 12) {
-      return jsonResponse({ success: false, message: 'Please enter a valid 12-digit Aadhaar card number.' }, 400);
-    }
-    const requestId = 'DL-REQ-' + Math.floor(100000 + Math.random() * 900000);
-    const demoOtp = String(Math.floor(100000 + Math.random() * 900000));
-    const last4Aadhaar = rawAadhaar.slice(-4);
-    const last4Phone = (body.phone || '').replace(/[^0-9]/g, '').slice(-4) || '9876';
-
-    let pendingKyc = await getStore(env, 'pendingKyc', {});
-    pendingKyc[requestId] = {
-      requestId,
-      maskedAadhaar: `XXXX-XXXX-${last4Aadhaar}`,
-      phone: body.phone || '',
-      name: body.name || '',
-      demoOtp,
-      createdAt: Date.now()
-    };
-    await saveStore(env, 'pendingKyc', pendingKyc);
-
-    return jsonResponse({
-      success: true,
-      requestId,
-      maskedAadhaar: `XXXX-XXXX-${last4Aadhaar}`,
-      maskedPhone: `XXXXXX${last4Phone}`,
-      demoOtp,
-      message: `DigiLocker OTP sent to mobile linked with Aadhaar ending in ${last4Aadhaar}.`
-    });
-  }
-
-  if (path === '/api/kyc/digilocker/verify-otp' && method === 'POST') {
-    let body = {};
-    try { body = await request.json(); } catch (e) {}
-    const { requestId, otp, name, fatherName, village, district, state } = body;
-    if (!requestId || !otp) {
-      return jsonResponse({ success: false, message: 'Request ID and OTP are required.' }, 400);
-    }
-
-    let pendingKyc = await getStore(env, 'pendingKyc', {});
-    const pending = pendingKyc[requestId];
-    if (!pending) {
-      return jsonResponse({ success: false, message: 'Invalid or expired verification session. Please initiate KYC again.' }, 400);
-    }
-
-    const cleanOtp = String(otp || '').trim();
-    pending.attempts = (pending.attempts || 0) + 1;
-
-    if (pending.attempts > 3) {
-      delete pendingKyc[requestId];
-      await saveStore(env, 'pendingKyc', pendingKyc);
-      return jsonResponse({ success: false, message: 'Too many incorrect OTP attempts. Session revoked for security.' }, 400);
-    }
-
-    // Strictly verify against the issued OTP - NO static bypass codes
-    const isMatch = pending.demoOtp === cleanOtp;
-
-    if (!isMatch) {
-      await saveStore(env, 'pendingKyc', pendingKyc);
-      return jsonResponse({
-        success: false,
-        message: `Invalid OTP. Please enter the correct 6-digit OTP received on your mobile. (${3 - pending.attempts} attempt(s) remaining)`
-      }, 400);
-    }
-
-    const last4 = pending.maskedAadhaar ? pending.maskedAadhaar.slice(-4) : '6789';
-    const verifiedData = {
-      name: pending.name || name || 'Ramesh Chandra Sahu',
-      fatherName: fatherName || 'Birendra Sahu',
-      dob: '15/07/1984',
-      gender: 'M',
-      village: village || 'Jharigam',
-      district: district || 'Nabarangpur',
-      state: state || 'Odisha',
-      pincode: '764076',
-      maskedAadhaar: pending.maskedAadhaar || `XXXX-XXXX-${last4}`,
-      kycRef: 'DL-GOV-2026-' + Math.floor(100000 + Math.random() * 900000),
-      verifiedAt: new Date().toISOString(),
-      status: 'VERIFIED',
-      issuer: 'DigiLocker / UIDAI (Govt. of India)'
-    };
-
-    delete pendingKyc[requestId];
-    await saveStore(env, 'pendingKyc', pendingKyc);
-
-    return jsonResponse({
-      success: true,
-      data: verifiedData,
-      message: 'DigiLocker Government e-KYC Verification Successful!'
-    });
-  }
-
-  // -------------------------------------------------------------------------
   // 5. FARMERS (CRUD)
   // -------------------------------------------------------------------------
 
@@ -612,11 +514,6 @@ export async function onRequest(context) {
         fatherName: body.fatherName || '',
         phone: body.phone || '',
         maskedAadhaar,
-        aadhaarVerified: true,
-        isKycVerified: Boolean(body.isKycVerified || body.kycRef),
-        kycRef: body.kycRef || ('DL-2026-' + String(Date.now()).slice(-6)),
-        kycProvider: body.kycProvider || 'DigiLocker / API Setu',
-        kycVerifiedAt: body.kycVerifiedAt || new Date().toISOString(),
         village: body.village || 'Jharigam',
         district: body.district || 'Nabarangpur',
         state: body.state || 'Odisha',
@@ -631,7 +528,7 @@ export async function onRequest(context) {
       };
       farmers.push(newFarmer);
       await saveStore(env, 'farmers', farmers);
-      return jsonResponse({ success: true, data: newFarmer, farmer: newFarmer, message: 'Farmer profile saved successfully with DigiLocker e-KYC.' }, 201);
+      return jsonResponse({ success: true, data: newFarmer, farmer: newFarmer, message: 'Farmer profile saved successfully.' }, 201);
     }
 
     // Update

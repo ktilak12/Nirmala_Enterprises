@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS products (
 CREATE INDEX IF NOT EXISTS idx_products_user ON products(user_id);
 CREATE INDEX IF NOT EXISTS idx_products_code ON products(user_id, product_code);
 
--- 4. Farmers (Farmer Registry with DigiLocker e-KYC)
+-- 4. Farmers (Farmer Registry)
 CREATE TABLE IF NOT EXISTS farmers (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,

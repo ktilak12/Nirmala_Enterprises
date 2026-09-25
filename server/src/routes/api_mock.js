@@ -791,111 +791,6 @@ mockRouter.get('/farmers', (_req, res) => {
   res.json({ success: true, data: enrichedFarmers });
 });
 
-// --- DIGILOCKER & GOVT E-KYC ENGINE (100% FREE VIA API SETU) ---
-const pendingKycRequests = new Map();
-
-mockRouter.post('/kyc/digilocker/initiate', (req, res) => {
-  const { aadhaarNumber, phone, name } = req.body || {};
-  const rawAadhaar = (aadhaarNumber || '').replace(/[^0-9]/g, '');
-  if (rawAadhaar.length !== 12) {
-    return res.status(400).json({ success: false, message: 'Please enter a valid 12-digit Aadhaar card number.' });
-  }
-
-  const requestId = 'DL-REQ-' + Math.floor(100000 + Math.random() * 900000);
-  const demoOtp = String(Math.floor(100000 + Math.random() * 900000));
-  const last4Aadhaar = rawAadhaar.slice(-4);
-  const last4Phone = (phone || '').replace(/[^0-9]/g, '').slice(-4) || '9876';
-
-  pendingKycRequests.set(requestId, {
-    requestId,
-    maskedAadhaar: `XXXX-XXXX-${last4Aadhaar}`,
-    phone: phone || '',
-    name: name || '',
-    demoOtp,
-    createdAt: Date.now()
-  });
-
-  // Expire after 10 minutes
-  setTimeout(() => pendingKycRequests.delete(requestId), 10 * 60 * 1000);
-
-  const isLive = Boolean(process.env.DIGILOCKER_CLIENT_ID && process.env.API_SETU_API_KEY && process.env.KYC_SANDBOX_MODE !== 'true');
-
-  res.json({
-    success: true,
-    requestId,
-    maskedAadhaar: `XXXX-XXXX-${last4Aadhaar}`,
-    maskedPhone: `XXXXXX${last4Phone}`,
-    mode: isLive ? 'LIVE_API_SETU' : 'SIMULATION_SANDBOX',
-    demoOtp: isLive ? undefined : demoOtp,
-    message: `DigiLocker OTP sent to mobile linked with Aadhaar ending in ${last4Aadhaar}.`
-  });
-});
-
-mockRouter.post('/kyc/digilocker/verify-otp', (req, res) => {
-  const { requestId, otp, name, fatherName, village, district, state } = req.body || {};
-  if (!requestId || !otp) {
-    return res.status(400).json({ success: false, message: 'Request ID and OTP are required.' });
-  }
-
-  const pending = pendingKycRequests.get(requestId);
-  if (!pending) {
-    return res.status(400).json({ success: false, message: 'Invalid or expired verification session. Please initiate KYC again.' });
-  }
-
-  const cleanOtp = String(otp).trim();
-  pending.attempts = (pending.attempts || 0) + 1;
-
-  if (pending.attempts > 3) {
-    pendingKycRequests.delete(requestId);
-    return res.status(400).json({ success: false, message: 'Too many incorrect OTP attempts. Session revoked for security.' });
-  }
-
-  // Strictly verify against the issued OTP - NO static bypass codes
-  const isMatch = pending.demoOtp === cleanOtp;
-
-  if (!isMatch) {
-    return res.status(400).json({
-      success: false,
-      message: `Invalid OTP. Please enter the correct 6-digit OTP received on your mobile. (${3 - pending.attempts} attempt(s) remaining)`
-    });
-  }
-
-  const last4 = pending.maskedAadhaar ? pending.maskedAadhaar.slice(-4) : '6789';
-  const verifiedData = {
-    name: (pending && pending.name) || name || 'Ramesh Chandra Sahu',
-    fatherName: fatherName || 'Birendra Sahu',
-    dob: '15/07/1984',
-    gender: 'M',
-    village: village || 'Jharigam',
-    district: district || 'Nabarangpur',
-    state: state || 'Odisha',
-    pincode: '764076',
-    maskedAadhaar: pending.maskedAadhaar || `XXXX-XXXX-${last4}`,
-    kycRef: 'DL-GOV-2026-' + Math.floor(100000 + Math.random() * 900000),
-    verifiedAt: new Date().toISOString(),
-    status: 'VERIFIED',
-    issuer: 'DigiLocker / UIDAI (Govt. of India)'
-  };
-
-  pendingKycRequests.delete(requestId);
-
-  auditLogs.unshift({
-    _id: 'aud_' + Date.now(),
-    action: 'DIGILOCKER_EKYC_VERIFIED',
-    actor: 'Administrator',
-    summary: `Verified e-KYC via DigiLocker for ${verifiedData.name} (Aadhaar: ${verifiedData.maskedAadhaar}, Ref: ${verifiedData.kycRef})`,
-    timestamp: new Date().toISOString()
-  });
-
-  pendingKycRequests.delete(requestId);
-
-  res.json({
-    success: true,
-    data: verifiedData,
-    message: 'DigiLocker Government e-KYC Verification Successful!'
-  });
-});
-
 mockRouter.post('/farmers', (req, res) => {
   const body = req.body;
   const rawAadhaar = (body.aadhaarNumber || '').replace(/[^0-9]/g, '');
@@ -908,11 +803,6 @@ mockRouter.post('/farmers', (req, res) => {
     fatherName: body.fatherName || '',
     phone: body.phone || '',
     maskedAadhaar,
-    aadhaarVerified: true,
-    isKycVerified: Boolean(body.isKycVerified || body.kycRef),
-    kycRef: body.kycRef || ('DL-2026-' + String(Date.now()).slice(-6)),
-    kycProvider: body.kycProvider || 'DigiLocker / API Setu',
-    kycVerifiedAt: body.kycVerifiedAt || new Date().toISOString(),
     village: body.village || 'Jharigam',
     district: body.district || 'Nabarangpur',
     state: body.state || 'Odisha',
@@ -2221,7 +2111,6 @@ mockRouter.get('/export/farmers', (_req, res) => {
     'Father / Guardian Name',
     'Phone Number',
     'Aadhaar Number',
-    'Aadhaar e-KYC',
     'CIBIL Score',
     'CIBIL Rating',
     'Credit Risk Assessment',
