@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import rateLimit from 'express-rate-limit';
 import { authenticate } from '../middleware/auth.js';
 import { whatsappGateway } from '../services/whatsappGateway.js';
+import { getChatbotResponse } from '../services/agroChatbotEngine.js';
 
 // Rate limiter for WhatsApp test endpoint: max 3 test messages per 5 minutes per IP
 const whatsappTestLimiter = rateLimit({
@@ -432,7 +433,7 @@ mockRouter.get('/public/invoices/:id/download', (req, res) => {
 
 // --- AUTHENTICATION REQUIRED FOR ALL PROTECTED API ENDPOINTS ---
 mockRouter.use((req, res, next) => {
-  if (req.path.startsWith('/public') || req.path.startsWith('/auth')) {
+  if (req.path.startsWith('/public') || req.path.startsWith('/auth') || req.path.startsWith('/chatbot')) {
     return next();
   }
   return authenticate(req, res, next);
@@ -2653,6 +2654,22 @@ mockRouter.post('/sync/pull', async (req, res) => {
       loans: loans.length
     }
   });
+});
+
+// --- KISAN MITRA AGRO AI CHATBOT ENDPOINT ---
+mockRouter.post('/chatbot/message', async (req, res) => {
+  try {
+    const { message, language, history } = req.body || {};
+    const result = await getChatbotResponse({
+      message,
+      language: language || 'en',
+      history: history || [],
+      env: process.env
+    });
+    return res.json(result);
+  } catch (err) {
+    return res.status(500).json({ success: false, message: 'Chatbot error: ' + err.message });
+  }
 });
 
 

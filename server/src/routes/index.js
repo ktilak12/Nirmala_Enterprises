@@ -20,6 +20,8 @@ import { searchRouter } from './search.routes.js';
 import { settingsRouter } from './settings.routes.js';
 import { usersRouter } from './users.routes.js';
 
+import { getChatbotResponse } from '../services/agroChatbotEngine.js';
+
 export const apiRouter = Router();
 
 /**
@@ -30,6 +32,22 @@ export const apiRouter = Router();
  */
 apiRouter.use('/public', publicRouter);
 apiRouter.use('/auth', authRouter);
+
+// Public Kisan Mitra Agro AI Chatbot
+apiRouter.post('/chatbot/message', async (req, res) => {
+  try {
+    const { message, language, history } = req.body || {};
+    const result = await getChatbotResponse({
+      message,
+      language: language || 'en',
+      history: history || [],
+      env: process.env
+    });
+    return res.json(result);
+  } catch (err) {
+    return res.status(500).json({ success: false, message: 'Chatbot error: ' + err.message });
+  }
+});
 
 apiRouter.use(authenticate);
 

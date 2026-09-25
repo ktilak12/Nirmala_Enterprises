@@ -1200,6 +1200,118 @@ export async function onRequest(context) {
     return jsonResponse({ success: true, data });
   }
 
+  // -------------------------------------------------------------------------
+  // 17. KISAN MITRA AGRO AI CHATBOT
+  // -------------------------------------------------------------------------
+  if (path === '/api/chatbot/message' && method === 'POST') {
+    let body = {};
+    try { body = await request.json(); } catch (e) {}
+    const { message, language, history } = body;
+    const query = (message || '').trim().toLowerCase();
+    const apiKey = env.GEMINI_API_KEY;
+
+    if (apiKey) {
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+        const sysInstruction = `You are "Kisan Mitra", the dedicated Agricultural AI Consultant and Support Assistant for "Nirmala Enterprises", a leading agro trading and farmer support hub located in Umarkote, Nabarangpur district, Odisha, India (PIN 764073).
+Provide accurate, friendly farming advice for crops (Maize, Paddy, Pulses), fertilizers (DAP, Urea, MOP Potash, Zinc), pest control (Fall Armyworm, Stem Borer), and store services. Respond in English, Odia (ଓଡ଼ିଆ), or Hindi (हिंदी) based on user preference. Keep answers concise, actionable, and structured with bullet points.`;
+
+        const contents = [];
+        if (Array.isArray(history)) {
+          for (const h of history.slice(-6)) {
+            if (h.role && h.text) {
+              contents.push({ role: h.role === 'model' ? 'model' : 'user', parts: [{ text: h.text }] });
+            }
+          }
+        }
+        contents.push({ role: 'user', parts: [{ text: message || '' }] });
+
+        const geminiRes = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            system_instruction: { parts: [{ text: sysInstruction }] },
+            contents,
+            generationConfig: { temperature: 0.3, maxOutputTokens: 800 }
+          })
+        });
+
+        if (geminiRes.ok) {
+          const geminiData = await geminiRes.json();
+          const reply = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (reply) {
+            return jsonResponse({ success: true, reply, source: 'gemini-ai', language: language || 'en' });
+          }
+        }
+      } catch (err) {
+        console.warn('Gemini API failed in Pages Function:', err.message);
+      }
+    }
+
+    // Built-in Agro Knowledge Base fallback
+    let lang = language || 'en';
+    if (/[\u0B00-\u0B7F]/.test(query)) lang = 'or';
+    else if (/[\u0900-\u097F]/.test(query)) lang = 'hi';
+
+    let reply = '';
+    if (['maize', 'makka', 'corn', 'maka', 'ମକା', 'मक्का', 'faw', 'armyworm'].some(w => query.includes(w))) {
+      if (lang === 'or') {
+        reply = `🌽 **ମକା ଚାଷ ପାଇଁ ବିଶେଷଜ୍ଞ ପରାମର୍ଶ**\\n• **ବୁଣିବା ସମୟ:** ଖରିଫ (ଜୁନ ୧୫ – ଜୁଲାଇ ୧୫) | ରବି (ଅକ୍ଟୋବର ୧୫ – ନଭେମ୍ବର ୨୦).\\n• **ବିହନ:** ଏକର ପିଛା ୭-୮ କେଜି ହାଇବ୍ରିଡ଼ ବିହନ.\\n• **ସାର ପ୍ରୟୋଗ:** ବୁଣିବା ବେଳେ ୧ ବସ୍ତା DAP + ୧ ବସ୍ତା ପଟାସ (MOP) + ୧୦ କେଜି ଜିଙ୍କ୍. ୩୦ ଦିନରେ ୧ ବସ୍ତା ୟୁରିଆ ଏବଂ ୫୦ ଦିନରେ ଆଉ ୧ ବସ୍ତା ୟୁରିଆ.\\n• **ସେନା ପୋକ (FAW) ଦମନ:** ଏମାମେକ୍ଟିନ ବେନଜୋଏଟ୍ ୫% SG (୦.୪ ଗ୍ରାମ/ଲି) କିମ୍ବା କୋରାଜେନ (୦.୪ ମିଲି/ଲି) ଗଛ ଗୁବାରେ ସ୍ପ୍ରେ କରନ୍ତୁ.\\n• ନିର୍ମଳା ଏଣ୍ଟରପ୍ରାଇଜେସ୍ ଉମରକୋଟରେ ଉଚିତ ମୂଲ୍ୟରେ ମକା କ୍ରୟ କରେ.`;
+      } else if (lang === 'hi') {
+        reply = `🌽 **मक्का की उन्नत खेती परामर्श**\\n• **बुवाई का समय:** खरीफ (15 जून – 15 जुलाई) | रबी (15 अक्टूबर – 20 नवंबर).\\n• **बीज दर:** 7-8 किग्रा/एकड़ (Pioneer, Syngenta, CP हाइब्रिड).\\n• **खाद:** 1 बोरी DAP + 1 बोरी पोटाश (MOP) + 10 किग्रा जिंक बुवाई समय, 30 दिन व 50 दिन पर 1-1 बोरी यूरिया.\\n• **सैनिक कीट (FAW) नियंत्रण:** इमामेक्टिन बेंजोएट 5% SG (0.4 ग्राम/लीटर) या कोराजन पोंगे में छिड़कें.\\n• निर्मला एंटरप्राइजेज उमरकोट में मक्के की सीधी नकद खरीद करता है!`;
+      } else {
+        reply = `🌽 **Maize (Makka) Cultivation Advisory**\\n• **Best Sowing:** Kharif (June 15 – July 15) | Rabi (Oct 15 – Nov 20).\\n• **Seed Rate:** 7-8 kg/acre for Pioneer / Syngenta hybrids. Spacing: 60x20 cm.\\n• **Fertilizer Dose (Acre):** 1 bag DAP + 1 bag MOP Potash at sowing. 1 bag Urea at 30 days and 1 bag Urea at 50 days (tasseling).\\n• **Fall Armyworm (FAW) Control:** Spray Emamectin Benzoate 5% SG @ 0.4 g/L or Coragen @ 0.4 ml/L directly into whorls.\\n• *Procurement:* Nirmala Enterprises purchases maize at competitive market prices with direct passbook settlement in Umarkote.`;
+      }
+    } else if (['paddy', 'rice', 'dhan', 'dhana', 'ଧାନ', 'धान', 'blast', 'bph'].some(w => query.includes(w))) {
+      if (lang === 'or') {
+        reply = `🌾 **ଧାନ ଚାଷ ଓ ସୁରକ୍ଷା ପରାମର୍ଶ**\\n• **କିସମ:** ସ୍ୱର୍ଣ୍ଣ (MTU 7029), ପୂଜା, MTU 1010, CR ଧାନ ୩୧୦.\\n• **ସାର:** ରୁଆ ବେଳେ ୧ ବସ୍ତା DAP + ୧ ବସ୍ତା ପଟାସ + ୧୦ କେଜି ଜିଙ୍କ୍. ୨୦ ଦିନରେ ୨୫ କେଜି ୟୁରିଆ ଓ ୪୫ ଦିନରେ ୨୦ କେଜି ୟୁରିଆ.\\n• **ମାଟିଆ ଗୁଣ୍ଡି ପୋକ (BPH) ଦମନ:** ପେକ୍ସାଲୋନ୍ (Pexalon) ୯୪ ମିଲି ପ୍ରତି ଏକର ମୂଳରେ ସ୍ପ୍ରେ କରନ୍ତୁ.`;
+      } else if (lang === 'hi') {
+        reply = `🌾 **धान की उन्नत खेती व सुरक्षा**\\n• **किस्में:** स्वर्णा, पूजा, MTU 1010, सीआर धान.\\n• **उर्वरक:** रोपाई समय 1 बोरी DAP + 1 बोरी पोटाश + 10 किग्रा जिंक. 20 दिन बाद 25 किग्रा यूरिया व 45 दिन पर 20 किग्रा यूरिया.\\n• **भूरा फुदका (BPH) नियंत्रण:** पेक्सलोन 94 मिली प्रति एकड़ छिड़काव करें.`;
+      } else {
+        reply = `🌾 **Paddy / Rice Crop Management**\\n• **Varieties:** Swarna, Pooja, MTU 1010, CR Dhan 310.\\n• **Fertilizer:** Basal 1 bag DAP + 1 bag MOP Potash + 25 kg Zinc Sulfate. Top dress 25 kg Urea at tillering (25 days) and 20 kg at panicle stage (45 days).\\n• **Stem Borer & BPH:** Apply Cartap 4G or spray Pexalon @ 94 ml/acre. Tricyclazole 75% WP for Blast.`;
+      }
+    } else if (['fertilizer', 'urea', 'dap', 'potash', 'mop', 'npk', 'zinc', 'sar', 'sara', 'ସାର', 'खाद', 'उर्वरक'].some(w => query.includes(w))) {
+      if (lang === 'or') {
+        reply = `🌱 **ସାର ପ୍ରୟୋଗ ନିୟମ**\\n• **ୟୁରିଆ (46% N):** କ୍ଷେତରେ ଅଧିକ ପାଣି ଥିବାବେଳେ ପକାନ୍ତୁ ନାହିଁ. ଓଦା ମାଟିରେ ୨-୩ କିସ୍ତିରେ ଦିଅନ୍ତୁ.\\n• **DAP (18:46:0):** ବୁଣିବା ବେଳେ ଚେର ପାଖରେ ମାଟି ତଳେ ଦିଅନ୍ତୁ.\\n• **ପଟାସ (MOP):** ଦାନା ପୁଷ୍ଟ ଓ ଚମକଦାର କରିବା ପାଇଁ ପଟାସ ଅପରିହାର୍ଯ୍ୟ.\\n• ନିର୍ମଳା ଏଣ୍ଟରପ୍ରାଇଜେସ୍ ଷ୍ଟୋରରେ IFFCO, PPL ସାର ସରକାରୀ ନିର୍ଦ୍ଧାରିତ ମୂଲ୍ୟରେ ଉପଲବ୍ଧ.`;
+      } else if (lang === 'hi') {
+        reply = `🌱 **संतुलित उर्वरक उपयोग**\\n• **यूरिया:** नम मिट्टी में 2-3 बार में दें ताकि नाइट्रोजन व्यर्थ न जाए.\\n• **DAP:** बुवाई के समय बीज के नीचे डालें.\\n• **पोटाश:** दानों का वजन व रोग प्रतिरोधक क्षमता बढ़ाने हेतु अनिवार्य.\\n• हमारे केंद्र पर सभी सरकारी प्रमाणित खाद उचित मूल्य पर उपलब्ध हैं.`;
+      } else {
+        reply = `🌱 **Fertilizer Guide & Best Practices**\\n• **Urea (46% N):** Split into 2-3 doses in moist soil; never apply in flooded water.\\n• **DAP (18:46:0):** Place 2 inches below the seed at planting for strong roots.\\n• **MOP Potash (60% K2O):** Essential for grain weight, luster, and drought/disease resistance.\\n• Certified IFFCO & PPL fertilizers available at government MRP at Nirmala Enterprises.`;
+      }
+    } else if (['rate', 'price', 'mandi', 'msp', 'bhav', 'market', 'dara', 'ଦର', 'ମୂଲ୍ୟ', 'भाव', 'रेट', 'କେତେ'].some(w => query.includes(w))) {
+      if (lang === 'or') {
+        reply = `💰 **ସରକାରୀ ସହାୟକ ମୂଲ୍ୟ (MSP) ଓ ମଣ୍ଡି ଦର**\\n• **ମକା (Maize):** MSP ₹୨,୨୨୫ / କ୍ୱିଣ୍ଟାଲ | ନିର୍ମଳା ଏଣ୍ଟରପ୍ରାଇଜେସ୍ କ୍ରୟ ଦର: ₹୨,୧୫୦ - ₹୨,୩୨୦ / କ୍ୱିଣ୍ଟାଲ.\\n• **ଧାନ (ସାଧାରଣ):** MSP ₹୨,୩୦୦ / କ୍ୱିଣ୍ଟାଲ.\\n• **ଧାନ (ଗ୍ରେଡ୍-A):** MSP ₹୨,୩୨୦ / କ୍ୱିଣ୍ଟାଲ.\\n• **ମାଣ୍ଡିଆ (Ragi):** MSP ₹୪,୨୯୦ / କ୍ୱିଣ୍ଟାଲ.\\n👉 ତୁରନ୍ତ ଡିଜିଟାଲ୍ ଓଜନ ସହ ତୁରନ୍ତ ପାସ୍ ବୁକ୍ ପେମେଣ୍ଟ!`;
+      } else if (lang === 'hi') {
+        reply = `💰 **सरकारी समर्थन मूल्य (MSP) और मंडी भाव 2026**\\n• **मक्का (Maize):** MSP ₹2,225 / क्विंटल | निर्मला खरीद: ₹2,150 – ₹2,320 / क्विंटल.\\n• **धान (सामान्य):** MSP ₹2,300 / क्विंटल.\\n• **धान (ग्रेड-ए):** MSP ₹2,320 / क्विंटल.\\n• **रागी (मडुआ):** MSP ₹4,290 / क्विंटल.\\n👉 हमारे केंद्र पर इलेक्ट्रॉनिक कांटा और तत्काल भुगतान उपलब्ध है!`;
+      } else {
+        reply = `💰 **Government MSP & Market Rates (Odisha 2026)**\\n• **Maize (Makka):** MSP ₹2,225/Qtl | Nirmala Enterprises Spot Procuring: ₹2,150 – ₹2,320/Qtl (moisture <14%).\\n• **Paddy (Common):** MSP ₹2,300/Qtl | **Paddy (Grade A):** ₹2,320/Qtl.\\n• **Ragi (Millet):** MSP ₹4,290/Qtl.\\n👉 Immediate digital weighing, transparent grading, and direct passbook settlement!`;
+      }
+    } else if (['store', 'nirmala', 'contact', 'location', 'phone', 'address', 'owner', 'who', 'କେଉଁଠି', 'ଫୋନ', 'କମ୍ପାନୀ', 'ଦୁକାନ', 'फोन', 'पता'].some(w => query.includes(w))) {
+      if (lang === 'or') {
+        reply = `🏢 **ନିର୍ମଳା ଏଣ୍ଟରପ୍ରାଇଜେସ୍ ଉମରକୋଟ**\\n• **ଠିକଣା:** ମୁଖ୍ୟ ରାସ୍ତା, ଉମରକୋଟ, ନବରଙ୍ଗପୁର, ଓଡ଼ିଶା - ୭୬୪୦୭୩.\\n• **ହେଲ୍ପଲାଇନ୍:** +୯୧ ୯୭୭୭୯୮୬୯୬୪ / +୯୧ ୭୮୪୮୯୫୬୯୬୩\\n• **ଦୋକାନ ସମୟ:** ସକାଳ ୮:୦୦ ରୁ ରାତି ୮:୦୦.\\n• **ସେବା:** ମକା/ଧାନ କ୍ରୟ, ବିହନ, ସାର, କୀଟନାଶକ ଓ ଚାଷୀ ପାସବୁକ୍ ହିସାବ.`;
+      } else if (lang === 'hi') {
+        reply = `🏢 **निर्मला एंटरप्राइजेज - किसान सेवा केंद्र**\\n• **स्थान:** मेन रोड, उमरकोट, नबरंगपुर, ओडिशा - 764073.\\n• **फोन:** +91 9777986964 / +91 7848956963\\n• **समय:** सुबह 8:00 से रात 8:00 बजे तक.\\n• **सेवाएं:** मक्का/धान खरीद, प्रमाणित बीज-खाद, कीटनाशक व किसान पासबुक.`;
+      } else {
+        reply = `🏢 **Nirmala Enterprises - Agro Trading & Farmer Hub**\\n• **Location:** Main Road, Umarkote, Dist: Nabarangpur, Odisha - 764073.\\n• **Helpline:** +91 9777986964 / +91 7848956963\\n• **Store Hours:** Mon – Sat: 8:00 AM – 8:00 PM | Sun: 9:00 AM – 2:00 PM\\n• **Services:** Grain Procurement (Maize & Paddy), Certified Hybrid Seeds, IFFCO Fertilizers, Crop Protection, and Farmer Passbook Credit Accounting.`;
+      }
+    } else {
+      if (lang === 'or') {
+        reply = `🌾 **ନମସ୍କାର! ମୁଁ 'କିଷାନ ମିତ୍ର' କୃଷି ସହାୟକ.**\\nଆପଣ ମକା, ଧାନ, ସାର ପ୍ରୟୋଗ, ଆଜିର ମଣ୍ଡି ଦର (MSP) କିମ୍ବା ନିର୍ମଳା ଏଣ୍ଟରପ୍ରାଇଜେସ୍ ସେବା ବିଷୟରେ ଯେକୌଣସି ପ୍ରଶ୍ନ ପଚାରିପାରିବେ. ଦୟାକରି ତଳେ ଟାଇପ୍ କରନ୍ତୁ!`;
+      } else if (lang === 'hi') {
+        reply = `🌾 **नमस्ते! मैं 'किसान मित्र' एग्रो एआई सहायक हूँ.**\\nआप मक्का, धान, खाद प्रबंधन, आज के मंडी भाव (MSP) या निर्मला एंटरप्राइजेज की सेवाओं के बारे में कोई भी प्रश्न पूछ सकते हैं.`;
+      } else {
+        reply = `🌾 **Namaskar! I am Kisan Mitra, your Agro AI Assistant at Nirmala Enterprises.**\\nI can help you with crop advice (Maize & Paddy), fertilizer dosing (DAP, Urea, Potash), live mandi & MSP rates, or store services in Umarkote. Feel free to ask anything!`;
+      }
+    }
+
+    return jsonResponse({
+      success: true,
+      reply,
+      source: 'knowledge-base',
+      language: lang
+    });
+  }
+
   // Fallback for unmatched routes
   return jsonResponse({
     success: true,
