@@ -268,10 +268,11 @@ export async function onRequest(context) {
       const found = sales.find(s => s._id === lastPart || s.invoiceNo === lastPart || s.invoiceNumber === lastPart || s.invoiceCode === lastPart);
       if (found) {
         const reqKey = url.searchParams.get('key') || request.headers.get('x-invoice-key') || '';
-        if (found.accessKey && reqKey !== found.accessKey) {
+        if (!found.accessKey || reqKey !== found.accessKey) {
           return jsonResponse({ success: false, message: 'Unauthorized. Valid invoice access key required to view customer receipt.' }, 401);
         }
-        return jsonResponse({ success: true, data: found, sale: found, invoice: found });
+        const { accessKey: _ak, ...safeFound } = found;
+        return jsonResponse({ success: true, data: safeFound, sale: safeFound, invoice: safeFound });
       }
       return jsonResponse({ success: false, message: 'Invoice not found.' }, 404);
     }
