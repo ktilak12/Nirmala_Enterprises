@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import mongoose from 'mongoose';
+import crypto from 'node:crypto';
 import rateLimit from 'express-rate-limit';
 import { Category } from '../models/Catalog.js';
 import { Product } from '../models/Product.js';
@@ -121,32 +122,89 @@ publicRouter.post(
   }),
 );
 
+const invoiceLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 30,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: 'Too many invoice requests from this connection. Please try again later.',
+  },
+});
+
+function constantTimeCompare(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  const hashA = crypto.createHash('sha256').update(a).digest();
+  const hashB = crypto.createHash('sha256').update(b).digest();
+  return crypto.timingSafeEqual(hashA, hashB);
+}
+
 /**
  * Public invoice lookup for customer WhatsApp receipt links.
  * Requires cryptographically unguessable ?key= matching sale/invoice accessKey.
+ * Strictly projects safe fields according to Section 10 allow-list rules (no access keys, internal IDs, or audit metadata).
  */
 publicRouter.get(
   '/invoices/:id',
+  invoiceLimiter,
   asyncHandler(async (req, res) => {
     const key = req.query.key || req.headers['x-invoice-key'];
     const { id } = req.params;
-    if (!key) {
+    if (!key || typeof key !== 'string') {
       throw unauthorized('Unauthorized access. Valid invoice key required.');
     }
+    const cleanId = String(id || '').trim();
     const filter = {
       $or: [
-        { invoiceCode: id.toUpperCase() },
-        { saleCode: id.toUpperCase() }
-      ]
+        { invoiceCode: cleanId.toUpperCase() },
+        { saleCode: cleanId.toUpperCase() },
+      ],
     };
-    if (mongoose.Types.ObjectId.isValid(id)) {
-      filter.$or.push({ _id: id });
+    if (mongoose.Types.ObjectId.isValid(cleanId)) {
+      filter.$or.push({ _id: cleanId });
     }
     const invoice = await Invoice.findOne(filter).lean();
-    if (!invoice || invoice.accessKey !== key) {
+    if (!invoice || !constantTimeCompare(invoice.accessKey, key)) {
       throw unauthorized('Unauthorized access or invoice not found.');
     }
-    res.json({ invoice });
+
+    // Section 10 Allow-list: Explicit projection of public-safe fields only
+    res.json({
+      invoice: {
+        invoiceCode: invoice.invoiceCode,
+        invoiceNo: invoice.invoiceCode,
+        saleCode: invoice.saleCode,
+        date: invoice.date,
+        dueDate: invoice.dueDate,
+        customerName: invoice.buyer?.name || invoice.partyName || 'Customer',
+        customerPhone: invoice.buyer?.phone || invoice.partyPhone || '',
+        customerAddress: invoice.buyer?.address || invoice.partyAddress || '',
+        customerGst: invoice.buyer?.gstin || invoice.partyGst || '',
+        partyName: invoice.buyer?.name || invoice.partyName || 'Customer',
+        partyPhone: invoice.buyer?.phone || invoice.partyPhone || '',
+        partyAddress: invoice.buyer?.address || invoice.partyAddress || '',
+        partyGst: invoice.buyer?.gstin || invoice.partyGst || '',
+        items: (invoice.items || []).map((it) => ({
+          productName: it.productName,
+          qty: it.qty,
+          unit: it.unit || it.unitSymbol || 'units',
+          rate: it.rate,
+          taxPercent: it.taxRatePct ?? it.taxPercent ?? 0,
+          taxAmount: it.taxAmount ?? 0,
+          lineTotal: it.lineTotal,
+        })),
+        subtotal: invoice.subtotal,
+        taxTotal: invoice.taxTotal,
+        discountTotal: invoice.discountTotal,
+        grandTotal: invoice.grandTotal,
+        amountPaid: invoice.amountPaid,
+        outstanding: invoice.outstanding,
+        balanceDue: invoice.outstanding,
+        paymentStatus: invoice.paymentStatus,
+        notes: invoice.notes,
+      },
+    });
   }),
 );
 
