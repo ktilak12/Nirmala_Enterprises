@@ -45,7 +45,10 @@ export async function createPurchase({ payload, actor, req }) {
     // makes them a supplier.
     const requiredRole = isProcurement ? 'farmer' : 'supplier';
     const roleAdded = !party.roles.includes(requiredRole);
-    if (roleAdded) party.roles.push(requiredRole);
+    if (roleAdded) {
+      party.roles.push(requiredRole);
+      party.markModified('roles');
+    }
 
     if (!Array.isArray(payload.items) || payload.items.length === 0) {
       throw badRequest('A purchase must contain at least one line item.');
