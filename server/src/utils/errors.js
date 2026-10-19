@@ -23,6 +23,8 @@ export const forbidden = (message = 'You do not have permission to do that.', de
   new AppError(message, 403, details);
 export const notFound = (message = 'Not found.', details) => new AppError(message, 404, details);
 export const conflict = (message, details) => new AppError(message, 409, details);
+export const tooManyRequests = (message = 'Too many requests.', details) =>
+  new AppError(message, 429, details);
 export const serviceUnavailable = (message = 'Service unavailable.', details) =>
   new AppError(message, 503, details);
 
