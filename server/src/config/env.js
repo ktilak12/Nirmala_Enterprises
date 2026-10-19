@@ -37,6 +37,8 @@ if (isProduction) {
   }
 }
 
+let cachedSeedAdmin = null;
+
 export const env = {
   nodeEnv: process.env.NODE_ENV ?? 'development',
   isProduction,
@@ -47,12 +49,14 @@ export const env = {
   jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '12h',
   clientOrigin: process.env.CLIENT_ORIGIN ?? 'http://localhost:5173',
   get seedAdmin() {
-    dotenv.config({ path: path.join(serverRoot, '.env'), override: true, quiet: true });
-    return {
-      email: process.env.SEED_ADMIN_EMAIL ?? 'admin@nirmalaenterprises.in',
-      password: process.env.SEED_ADMIN_PASSWORD ?? '',
-      name: process.env.SEED_ADMIN_NAME ?? 'System Administrator',
-    };
+    if (!cachedSeedAdmin) {
+      cachedSeedAdmin = {
+        email: process.env.SEED_ADMIN_EMAIL ?? 'admin@nirmalaenterprises.in',
+        password: process.env.SEED_ADMIN_PASSWORD ?? '',
+        name: process.env.SEED_ADMIN_NAME ?? 'System Administrator',
+      };
+    }
+    return cachedSeedAdmin;
   },
   serverRoot,
 };
