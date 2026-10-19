@@ -72,11 +72,19 @@ export const dateRangeQuery = z.object({
 // Auth and users
 // ---------------------------------------------------------------------------
 
-export const loginSchema = z.object({
-  email: z.string().trim().optional(),
-  username: z.string().trim().optional(),
-  password: z.string().min(1, 'Enter your password.'),
-});
+export const loginSchema = z
+  .object({
+    email: z.string().trim().optional(),
+    username: z.string().trim().optional(),
+    password: z.string().min(1, 'Enter your password.'),
+  })
+  .refine(
+    (data) => Boolean((data.email && data.email.trim()) || (data.username && data.username.trim())),
+    {
+      message: 'Enter your email or username.',
+      path: ['email'],
+    },
+  );
 
 export const changePasswordSchema = z.object({
   currentPassword: z.string().min(1, 'Enter your current password.'),
@@ -87,7 +95,7 @@ export const createUserSchema = z.object({
   name: z.string().trim().min(2, 'Enter the person\'s name.'),
   email: z.email('Enter a valid email address.'),
   password: z.string().min(8, 'Password must be at least 8 characters.'),
-  role: z.enum(Object.values(ROLES)).optional().default(ROLES.SUPER_ADMIN),
+  role: z.enum(Object.values(ROLES)).optional().default(ROLES.SALES_STAFF),
   phone: z.string().trim().optional(),
 });
 
@@ -332,6 +340,7 @@ export const loanAdjustmentSchema = z.object({
 
 export const cancelLoanSchema = z.object({
   reason: z.string().trim().min(3, 'Give a reason for cancelling.'),
+  force: z.boolean().optional(),
 });
 
 export const listLoansQuery = z.object({
