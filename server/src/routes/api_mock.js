@@ -313,15 +313,26 @@ mockRouter.post('/public/inquiries', (req, res) => {
   res.json({ success: true, message: 'Inquiry received. Our agricultural officer will contact you within 24 hours.' });
 });
 
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 mockRouter.get('/public/invoices/:id', (req, res) => {
   const { id } = req.params;
   const key = req.query.key || req.headers['x-invoice-key'];
   const sale = sales.find(s => s._id === id || s.invoiceNo === id || s.invoiceNumber === id);
   if (!sale) return res.status(404).json({ success: false, message: 'Invoice not found.' });
-  if (sale.accessKey && key !== sale.accessKey) {
+  if (!sale.accessKey || key !== sale.accessKey) {
     return res.status(401).json({ success: false, message: 'Unauthorized. Valid invoice access key required to view customer receipt.' });
   }
-  res.json({ success: true, data: sale });
+  const { accessKey: _, ...safeSale } = sale;
+  res.json({ success: true, data: safeSale });
 });
 
 mockRouter.get('/public/invoices/:id/download', (req, res) => {
@@ -329,16 +340,16 @@ mockRouter.get('/public/invoices/:id/download', (req, res) => {
   const key = req.query.key || req.headers['x-invoice-key'];
   const sale = sales.find(s => s._id === id || s.invoiceNo === id || s.invoiceNumber === id);
   if (!sale) return res.status(404).send('<h2>Invoice Not Found</h2>');
-  if (sale.accessKey && key !== sale.accessKey) {
+  if (!sale.accessKey || key !== sale.accessKey) {
     return res.status(401).send('<h2>Unauthorized: Valid invoice key required.</h2>');
   }
 
-  const dateStr = new Date(sale.date || Date.now()).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  const dateStr = escapeHtml(new Date(sale.date || Date.now()).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }));
   const itemsHtml = (sale.items || []).map((it, idx) => `
     <tr>
       <td style="padding:8px;border:1px solid #ddd;text-align:center;">${idx + 1}</td>
-      <td style="padding:8px;border:1px solid #ddd;"><strong>${it.productName || it.name}</strong></td>
-      <td style="padding:8px;border:1px solid #ddd;text-align:center;">${it.quantity || it.qty || 1} ${it.unit || 'Bags'}</td>
+      <td style="padding:8px;border:1px solid #ddd;"><strong>${escapeHtml(it.productName || it.name || '')}</strong></td>
+      <td style="padding:8px;border:1px solid #ddd;text-align:center;">${escapeHtml(it.quantity || it.qty || 1)} ${escapeHtml(it.unit || 'Bags')}</td>
       <td style="padding:8px;border:1px solid #ddd;text-align:right;">₹${Number(it.unitPrice || it.rate || 0).toLocaleString('en-IN')}</td>
       <td style="padding:8px;border:1px solid #ddd;text-align:right;"><strong>₹${Number(it.total || it.amount || 0).toLocaleString('en-IN')}</strong></td>
     </tr>
@@ -348,7 +359,7 @@ mockRouter.get('/public/invoices/:id/download', (req, res) => {
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Invoice ${sale.invoiceNo} - Nirmala Enterprises</title>
+  <title>Invoice ${escapeHtml(sale.invoiceNo)} - Nirmala Enterprises</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f9f9f9; padding: 20px; color: #333; }
     .invoice-card { max-width: 780px; margin: 0 auto; background: #fff; border: 1px solid #ccc; border-radius: 8px; padding: 30px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
@@ -382,15 +393,15 @@ mockRouter.get('/public/invoices/:id/download', (req, res) => {
     <div class="meta-grid">
       <div>
         <div style="font-size:11px;color:#777;font-weight:bold;text-transform:uppercase;">Billed To:</div>
-        <strong style="font-size:15px;">${sale.customerName}</strong><br>
-        Phone: ${sale.customerPhone || 'N/A'}<br>
-        Address: ${sale.customerAddress || 'Jharigam, Nabarangpur, 764076, Odisha'}
+        <strong style="font-size:15px;">${escapeHtml(sale.customerName || 'Customer')}</strong><br>
+        Phone: ${escapeHtml(sale.customerPhone || 'N/A')}<br>
+        Address: ${escapeHtml(sale.customerAddress || 'Jharigam, Nabarangpur, 764076, Odisha')}
       </div>
       <div style="text-align:right;">
-        <strong>Invoice No:</strong> ${sale.invoiceNo}<br>
+        <strong>Invoice No:</strong> ${escapeHtml(sale.invoiceNo)}<br>
         <strong>Date:</strong> ${dateStr}<br>
-        <strong>Payment Mode:</strong> ${sale.paymentMode || 'CASH'}<br>
-        <strong>Status:</strong> <span style="font-weight:bold;color:${sale.paymentStatus === 'PAID' ? '#166534' : '#991b1b'}">${sale.paymentStatus || 'PAID'}</span>
+        <strong>Payment Mode:</strong> ${escapeHtml(sale.paymentMode || 'CASH')}<br>
+        <strong>Status:</strong> <span style="font-weight:bold;color:${sale.paymentStatus === 'PAID' ? '#166534' : '#991b1b'}">${escapeHtml(sale.paymentStatus || 'PAID')}</span>
       </div>
     </div>
     <table class="table">
@@ -1214,10 +1225,10 @@ mockRouter.post('/sales', (req, res) => {
 
 // --- WHATSAPP & SMS PAYMENT NOTIFICATIONS ---
 function buildWhatsAppAlerts(sale, host = 'localhost:5000', protocol = 'http') {
-  const downloadUrl = `${protocol}://${host}/invoice/${sale.invoiceNo || sale._id}`;
+  const downloadUrl = `${protocol}://${host}/invoice/${sale.invoiceNo || sale._id}${sale.accessKey ? '?key=' + encodeURIComponent(sale.accessKey) : ''}`;
   const rawCustPhone = (sale.customerPhone || '').replace(/[^0-9]/g, '');
   const targetCustomerPhone = rawCustPhone.length === 10 ? '91' + rawCustPhone : rawCustPhone;
-  const adminPhone = '919777986964';
+  const adminPhone = process.env.SUPER_ADMIN_PHONE || '919777986964';
 
   const dateStr = new Date(sale.date || Date.now()).toLocaleDateString('en-IN', {
     day: '2-digit',
@@ -1273,7 +1284,7 @@ function buildWhatsAppAlerts(sale, host = 'localhost:5000', protocol = 'http') {
     `📄 *View / Download Invoice:*\n` +
     `${downloadUrl}\n` +
     `━━━━━━━━━━━━━━━━━━━━━\n` +
-    `_Super Admin Alert (9777986964)_`;
+    `_Super Admin Alert (${adminPhone})_`;
 
   return {
     invoiceNo: sale.invoiceNo,
@@ -1333,12 +1344,13 @@ mockRouter.post('/sales/:id/payments', (req, res) => {
   saveToFile('sales.json', sales);
 
   const alerts = buildWhatsAppAlerts(sale, req.get('host'), req.protocol);
+  const adminPhone = process.env.SUPER_ADMIN_PHONE || '919777986964';
 
   auditLogs.unshift({
     _id: 'aud_' + Date.now(),
     action: 'PAYMENT_RECEIVED',
     actor: 'Cashier / Admin',
-    summary: `Payment of ₹${amount.toLocaleString('en-IN')} received for ${sale.invoiceNo} (${sale.customerName}) - Alert ready for Super Admin (9777986964)`,
+    summary: `Payment of ₹${amount.toLocaleString('en-IN')} received for ${sale.invoiceNo} (${sale.customerName}) - Alert ready for Super Admin (${adminPhone})`,
     timestamp: new Date().toISOString()
   });
 
@@ -1369,11 +1381,11 @@ mockRouter.get('/whatsapp/status', authenticate, (req, res) => {
   res.json(fullStatus);
 });
 
-mockRouter.post('/whatsapp/settings', authenticate, (req, res) => {
+mockRouter.post('/whatsapp/settings', authenticate, async (req, res) => {
   if (req.user?.role !== 'SUPER_ADMIN') {
     return res.status(403).json({ success: false, message: 'Forbidden: Super Administrator privilege required.' });
   }
-  const updated = whatsappGateway.updateSettings(req.body);
+  const updated = await whatsappGateway.updateSettings(req.body);
   res.json({ success: true, settings: updated, message: 'WhatsApp Gateway settings updated.' });
 });
 
@@ -1386,11 +1398,12 @@ mockRouter.post('/whatsapp/disconnect', authenticate, async (req, res) => {
 });
 
 // Message outbox contains customer phone numbers and message content — SUPER_ADMIN only
-mockRouter.get('/whatsapp/outbox', authenticate, (req, res) => {
+mockRouter.get('/whatsapp/outbox', authenticate, async (req, res) => {
   if (req.user?.role !== 'SUPER_ADMIN') {
     return res.status(403).json({ success: false, message: 'Forbidden: Super Administrator privilege required.' });
   }
-  res.json({ success: true, data: whatsappGateway.getOutbox() });
+  const outboxData = await whatsappGateway.getOutbox();
+  res.json({ success: true, data: outboxData });
 });
 
 // Rate-limited: max 3 test messages per IP per 5 minutes to prevent WhatsApp spam/ban
@@ -1400,7 +1413,13 @@ mockRouter.post('/whatsapp/test', authenticate, whatsappTestLimiter, async (req,
   }
   const status = whatsappGateway.getStatus();
   // Strictly constrain test messaging to the verified administrator phone
-  const targetPhone = status.adminPhone || process.env.SUPER_ADMIN_PHONE || '9777986964';
+  const targetPhone = status.adminPhone || process.env.SUPER_ADMIN_PHONE;
+  if (!targetPhone) {
+    return res.status(400).json({
+      success: false,
+      message: 'No administrator phone configured. Please set SUPER_ADMIN_PHONE or configure admin phone in settings.',
+    });
+  }
   const testMsg = `🌾 *NIRMALA ENTERPRISES ERP* 🌾\n━━━━━━━━━━━━━━━━━━━━━\n✅ *WhatsApp Gateway Test Message*\nConnected device verified.\nTime: ${new Date().toLocaleTimeString('en-IN')}\nSuper Admin: ${targetPhone}\n━━━━━━━━━━━━━━━━━━━━━\n_Automated Background Gateway Active_`;
   const result = await whatsappGateway.sendBackgroundMessage(targetPhone, testMsg);
   res.json({ success: result.success, result, targetPhone });
