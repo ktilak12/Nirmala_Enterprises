@@ -1,7 +1,6 @@
 import makeWASocket, {
   useMultiFileAuthState,
   DisconnectReason,
-  Browsers,
   fetchLatestBaileysVersion
 } from '@whiskeysockets/baileys';
 import QRCode from 'qrcode';
@@ -29,26 +28,31 @@ function getSettings() {
     console.error('[WA GATEWAY] Failed to read settings:', e.message);
   }
   return {
-    adminPhone: process.env.SUPER_ADMIN_PHONE || '9777986964',
+    adminPhone: process.env.SUPER_ADMIN_PHONE || '',
     autoSendOnCheckout: true,
     sendCustomerBill: true,
     sendAdminAlert: true
   };
 }
 
-function saveSettings(settings) {
+async function saveSettings(settings) {
   try {
-    fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2), 'utf8');
+    await fs.promises.writeFile(SETTINGS_FILE, JSON.stringify(settings, null, 2), 'utf8');
   } catch (e) {
     console.error('[WA GATEWAY] Failed to save settings:', e.message);
   }
 }
 
-function logOutbox(entry) {
+async function logOutbox(entry) {
   try {
     let outbox = [];
     if (fs.existsSync(OUTBOX_FILE)) {
-      outbox = JSON.parse(fs.readFileSync(OUTBOX_FILE, 'utf8'));
+      try {
+        const content = await fs.promises.readFile(OUTBOX_FILE, 'utf8');
+        outbox = JSON.parse(content);
+      } catch {
+        outbox = [];
+      }
     }
     outbox.unshift({
       _id: 'wa_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
@@ -57,11 +61,13 @@ function logOutbox(entry) {
     });
     // Keep last 100 entries
     if (outbox.length > 100) outbox = outbox.slice(0, 100);
-    fs.writeFileSync(OUTBOX_FILE, JSON.stringify(outbox, null, 2), 'utf8');
+    await fs.promises.writeFile(OUTBOX_FILE, JSON.stringify(outbox, null, 2), 'utf8');
   } catch (e) {
     console.error('[WA GATEWAY] Failed to update outbox:', e.message);
   }
 }
+
+const MAX_RETRY = 10;
 
 class WhatsAppGatewayService {
   constructor() {
@@ -93,7 +99,7 @@ class WhatsAppGatewayService {
         logger,
         auth: state,
         printQRInTerminal: false,
-        browser: Browsers.macOS('Desktop'),
+        browser: ['Nirmala Enterprises ERP', 'Chrome', '1.0.0'],
         syncFullHistory: false,
         generateHighQualityLinkPreview: false,
         connectTimeoutMs: 60000,
@@ -126,8 +132,13 @@ class WhatsAppGatewayService {
           this.qrDataUrl = null;
 
           if (shouldReconnect) {
+            if (this.retryCount >= MAX_RETRY) {
+              console.warn(`[WA GATEWAY] Max reconnection retries (${MAX_RETRY}) reached. Stopping automatic reconnection.`);
+              return;
+            }
             const delay = Math.min(10000, (this.retryCount + 1) * 2000);
             this.retryCount++;
+            console.log(`[WA GATEWAY] Reconnecting attempt ${this.retryCount}/${MAX_RETRY} in ${delay}ms...`);
             setTimeout(() => {
               this._startSocket();
             }, delay);
@@ -169,19 +180,20 @@ class WhatsAppGatewayService {
     };
   }
 
-  getOutbox() {
+  async getOutbox() {
     try {
       if (fs.existsSync(OUTBOX_FILE)) {
-        return JSON.parse(fs.readFileSync(OUTBOX_FILE, 'utf8'));
+        const content = await fs.promises.readFile(OUTBOX_FILE, 'utf8');
+        return JSON.parse(content);
       }
     } catch {}
     return [];
   }
 
-  updateSettings(newSettings) {
+  async updateSettings(newSettings) {
     const current = getSettings();
     const updated = { ...current, ...newSettings };
-    saveSettings(updated);
+    await saveSettings(updated);
     return updated;
   }
 
@@ -195,52 +207,58 @@ class WhatsAppGatewayService {
   async sendBackgroundMessage(toPhone, messageText) {
     const jid = this.formatJid(toPhone);
     if (!jid) {
-      logOutbox({ to: toPhone, text: messageText, status: 'SKIPPED_INVALID_PHONE' });
+      await logOutbox({ to: toPhone, text: messageText, status: 'SKIPPED_INVALID_PHONE' });
       return { success: false, reason: 'Invalid phone number' };
     }
 
     if (this.status !== 'CONNECTED' || !this.sock) {
       // Gateway is offline or not paired yet: queue message
-      logOutbox({ to: toPhone, text: messageText, status: 'QUEUED_OFFLINE' });
+      await logOutbox({ to: toPhone, text: messageText, status: 'QUEUED_OFFLINE' });
       return { success: false, reason: 'WhatsApp Gateway not linked / offline' };
     }
 
     try {
       await this.sock.sendMessage(jid, { text: messageText });
-      logOutbox({ to: toPhone, text: messageText, status: 'SENT' });
+      await logOutbox({ to: toPhone, text: messageText, status: 'SENT' });
       return { success: true };
     } catch (err) {
       console.error('[WA GATEWAY] Send error to ' + toPhone + ':', err.message);
-      logOutbox({ to: toPhone, text: messageText, status: 'FAILED', error: err.message });
+      await logOutbox({ to: toPhone, text: messageText, status: 'FAILED', error: err.message });
       return { success: false, error: err.message };
     }
   }
 
   async sendSilentSaleAlerts(sale, host = 'localhost:5000', protocol = 'http') {
     const settings = getSettings();
-    const adminPhone = settings.adminPhone || '9777986964';
+    const adminPhone = settings.adminPhone || process.env.SUPER_ADMIN_PHONE || '';
+    const invoiceCode = sale.invoiceCode || sale.saleCode || sale.invoiceNo || 'N/A';
     const accessQuery = sale.accessKey ? `?key=${sale.accessKey}` : '';
-    const invoiceUrl = `${protocol}://${host}/invoice/${sale.invoiceNo}${accessQuery}`;
+    const invoiceUrl = `${protocol}://${host}/invoice/${invoiceCode}${accessQuery}`;
 
     const itemsSummary = (sale.items || [])
       .map((it, idx) => {
-        const q = it.quantity || it.qty || 1;
-        const r = it.unitPrice !== undefined ? it.unitPrice : (it.rate !== undefined ? it.rate : (it.price || 0));
-        const t = it.total !== undefined ? it.total : (it.amount || (q * r));
+        const q = Number(it.quantity || it.qty || 1);
+        const r = Number(it.rate !== undefined ? it.rate : (it.unitPrice !== undefined ? it.unitPrice : (it.price || 0)));
+        const t = Number(it.lineTotal !== undefined ? it.lineTotal : (it.total !== undefined ? it.total : (q * r)));
         const name = it.productName || it.name || 'Agro Product';
         const unit = it.unit || 'units';
-        return `${idx + 1}. *${name}*\n   ${q} ${unit} × ₹${Number(r).toLocaleString('en-IN')} = *₹${Number(t).toLocaleString('en-IN')}*`;
+        return `${idx + 1}. *${name}*\n   ${q} ${unit} × ₹${r.toLocaleString('en-IN')} = *₹${t.toLocaleString('en-IN')}*`;
       })
       .join('\n\n');
+
+    const grandTotal = Number(sale.grandTotal || 0);
+    const amountPaid = Number(sale.amountPaid !== undefined ? sale.amountPaid : (sale.paidAmount !== undefined ? sale.paidAmount : grandTotal));
+    const balanceDue = Number(sale.outstanding !== undefined ? sale.outstanding : (sale.balanceDue !== undefined ? sale.balanceDue : 0));
+    const supportPhoneText = adminPhone ? `+91 ${adminPhone}` : 'Contact Store Support';
 
     const customerMsg = 
 `🌾 *NIRMALA ENTERPRISES* 🌾
 _Agro Trading & Farmer Support Hub_
 ━━━━━━━━━━━━━━━━━━━━━
 🧾 *TAX INVOICE & PAYMENT RECEIPT*
-*Invoice No:* ${sale.invoiceNo}
+*Invoice No:* ${invoiceCode}
 *Date:* ${new Date(sale.date || Date.now()).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-*Customer:* ${sale.customerName || 'Customer'}
+*Customer:* ${sale.customerName || sale.partyName || 'Customer'}
 ━━━━━━━━━━━━━━━━━━━━━
 
 📦 *PURCHASED ITEMS:*
@@ -249,37 +267,38 @@ ${itemsSummary || 'Agro Inputs & Fertilizers'}
 ━━━━━━━━━━━━━━━━━━━━━
 *Subtotal:* ₹${sale.subtotal || 0}
 *GST Tax:* ₹${sale.tax || sale.gstTotal || sale.taxTotal || 0}
-💰 *GRAND TOTAL: ₹${sale.grandTotal || 0}*
-💳 *Paid Amount:* ₹${sale.paidAmount || sale.grandTotal || 0} (${sale.paymentMode || 'Cash'})
-${(sale.balanceDue || 0) > 0 ? `⚠️ *Balance Due: ₹${sale.balanceDue}*` : '✅ *Payment Status: Fully Paid*'}
+💰 *GRAND TOTAL: ₹${grandTotal}*
+💳 *Paid Amount:* ₹${amountPaid} (${sale.paymentMode || 'Cash'})
+${balanceDue > 0 ? `⚠️ *Balance Due: ₹${balanceDue}*` : '✅ *Payment Status: Fully Paid*'}
 ━━━━━━━━━━━━━━━━━━━━━
 📄 *Download / View Your Bill:*
 ${invoiceUrl}
 ━━━━━━━━━━━━━━━━━━━━━
 🌱 _Thank you for choosing Nirmala Enterprises!_
-📞 *Support Helpline:* +91 97779 86964
+📞 *Support Helpline:* ${supportPhoneText}
 📍 Main Road, Jharigam, Nabarangpur, 764076, Odisha`;
 
     const adminMsg = 
 `🔔 *PAYMENT RECEIVED ALERT* 🔔
 *NIRMALA ENTERPRISES ERP*
 ━━━━━━━━━━━━━━━━━━━━━
-📄 *Invoice No:* ${sale.invoiceNo}
+📄 *Invoice No:* ${invoiceCode}
 📅 *Date:* ${new Date(sale.date || Date.now()).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-👤 *Customer:* ${sale.customerName || 'Walk-in Customer'} (${sale.customerPhone || 'Walk-in'})
-💰 *Amount Paid:* ₹${sale.paidAmount || sale.grandTotal || 0}
+👤 *Customer:* ${sale.customerName || sale.partyName || 'Walk-in Customer'} (${sale.customerPhone || sale.partyPhone || 'Walk-in'})
+💰 *Amount Paid:* ₹${amountPaid}
 💳 *Payment Mode:* ${sale.paymentMode || 'Cash'} (${sale.paymentStatus || 'PAID'})
-💵 *Total Bill:* ₹${sale.grandTotal || 0}
-⚖️ *Balance Due:* ₹${sale.balanceDue || 0}
+💵 *Total Bill:* ₹${grandTotal}
+⚖️ *Balance Due:* ₹${balanceDue}
 ━━━━━━━━━━━━━━━━━━━━━
 📄 *View / Download Invoice:*
 ${invoiceUrl}
 ━━━━━━━━━━━━━━━━━━━━━
-_Automated Alert to Super Admin (${adminPhone})_`;
+_Automated Alert to Admin_`;
 
     let customerResult = { success: false, reason: 'No phone' };
-    if (settings.sendCustomerBill !== false && sale.customerPhone) {
-      customerResult = await this.sendBackgroundMessage(sale.customerPhone, customerMsg);
+    const customerPhone = sale.customerPhone || sale.partyPhone;
+    if (settings.sendCustomerBill !== false && customerPhone) {
+      customerResult = await this.sendBackgroundMessage(customerPhone, customerMsg);
     }
 
     let adminResult = { success: false };
@@ -312,7 +331,7 @@ _Automated Alert to Super Admin (${adminPhone})_`;
       fs.mkdirSync(SESSION_DIR, { recursive: true });
     } catch {}
     this.initPromise = null;
-    setTimeout(() => this._startSocket(), 1000);
+    // Explicit disconnect does NOT auto-reconnect
     return { success: true, message: 'WhatsApp Gateway unlinked.' };
   }
 }
