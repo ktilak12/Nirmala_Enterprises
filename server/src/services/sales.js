@@ -10,6 +10,7 @@ import { createInvoiceForSale } from './invoicing.js';
 import { postMovement } from './ledger.js';
 import { paymentStatusFor, postPayment } from './payments.js';
 import { DOC_PREFIX, nextDocNumber } from './numbering.js';
+import { whatsappGateway } from './whatsappGateway.js';
 
 /**
  * Create a sale - the flagship of the "one transaction updates every related
@@ -44,7 +45,10 @@ export async function createSale({ payload, actor, req }) {
      * second record, so we widen the existing party rather than refusing.
      */
     const roleAdded = !party.roles.includes('customer');
-    if (roleAdded) party.roles.push('customer');
+    if (roleAdded) {
+      party.roles.push('customer');
+      party.markModified('roles');
+    }
 
     if (!Array.isArray(payload.items) || payload.items.length === 0) {
       throw badRequest('A sale must contain at least one line item.');
@@ -206,8 +210,31 @@ export async function createSale({ payload, actor, req }) {
       req,
     });
 
-    return { sale, invoice, payment };
+    return { sale, invoice, payment, party };
   });
+
+  try {
+    const host = req?.get ? (req.get('host') || 'localhost:5000') : 'localhost:5000';
+    const protocol = req?.protocol || 'http';
+    const saleObj = result.sale?.toObject ? result.sale.toObject() : { ...result.sale };
+    whatsappGateway
+      .sendSilentSaleAlerts(
+        {
+          ...saleObj,
+          invoiceCode: result.invoice?.invoiceCode || saleObj.invoiceCode,
+          accessKey: result.invoice?.accessKey || saleObj.accessKey,
+          customerName: result.party?.name || saleObj.partyName,
+          customerPhone: result.party?.phone || saleObj.partyPhone,
+        },
+        host,
+        protocol,
+      )
+      .catch((err) => console.error('[SALES] WhatsApp notification failed:', err.message));
+  } catch (err) {
+    console.error('[SALES] Failed to trigger WhatsApp notification:', err.message);
+  }
+
+  return { sale: result.sale, invoice: result.invoice, payment: result.payment };
 }
 
 /**
@@ -219,15 +246,16 @@ export async function createSale({ payload, actor, req }) {
 export async function recordSalePayment({ saleId, payload, actor, req }) {
   const { syncInvoicePayment } = await import('./invoicing.js');
 
-  return withTransaction(async (session) => {
+  const result = await withTransaction(async (session) => {
     const sale = await Sale.findById(saleId).session(session);
     if (!sale) throw notFound('Sale not found.');
 
+    const outstandingBefore = sale.outstanding;
     const amount = round2(payload.amount);
     if (amount <= 0) throw badRequest('Payment amount must be greater than zero.');
-    if (amount > sale.outstanding) {
+    if (amount > outstandingBefore) {
       throw badRequest(
-        `Payment of ${amount} exceeds the outstanding balance of ${sale.outstanding}.`,
+        `Payment of ${amount} exceeds the outstanding balance of ${outstandingBefore}.`,
       );
     }
 
@@ -270,10 +298,33 @@ export async function recordSalePayment({ saleId, payload, actor, req }) {
       entityId: sale._id,
       entityCode: sale.saleCode,
       summary: `Received ${amount} from ${party.name} against ${sale.saleCode}`,
-      changes: [{ field: 'outstanding', from: round2(sale.outstanding + amount), to: sale.outstanding }],
+      changes: [{ field: 'outstanding', from: outstandingBefore, to: sale.outstanding }],
       req,
     });
 
-    return { sale, payment };
+    return { sale, payment, party };
   });
+
+  try {
+    const host = req?.get ? (req.get('host') || 'localhost:5000') : 'localhost:5000';
+    const protocol = req?.protocol || 'http';
+    const saleObj = result.sale?.toObject ? result.sale.toObject() : { ...result.sale };
+    whatsappGateway
+      .sendSilentSaleAlerts(
+        {
+          ...saleObj,
+          invoiceCode: saleObj.invoiceCode || saleObj.saleCode,
+          accessKey: saleObj.accessKey,
+          customerName: result.party?.name || saleObj.partyName,
+          customerPhone: result.party?.phone || saleObj.partyPhone,
+        },
+        host,
+        protocol,
+      )
+      .catch((err) => console.error('[SALES] WhatsApp payment notification failed:', err.message));
+  } catch (err) {
+    console.error('[SALES] Failed to trigger WhatsApp payment notification:', err.message);
+  }
+
+  return { sale: result.sale, payment: result.payment };
 }
