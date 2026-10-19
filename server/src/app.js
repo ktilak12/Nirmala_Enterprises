@@ -19,6 +19,7 @@ export function createApp() {
   // Behind a reverse proxy in deployment, so req.ip must come from the
   // forwarded header for the rate limiter and the audit log to be meaningful.
   app.set('trust proxy', 1);
+  app.disable('x-powered-by');
 
   app.use(helmet({
     contentSecurityPolicy: {
@@ -27,7 +28,7 @@ export function createApp() {
         'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
         'font-src': ["'self'", 'data:', 'https://fonts.gstatic.com'],
         'img-src': ["'self'", 'data:', 'blob:', 'https:'],
-        'script-src': ["'self'", "'unsafe-inline'"],
+        'script-src': ["'self'"],
       },
     },
   }));
@@ -48,6 +49,7 @@ export function createApp() {
 
   /**
    * Login is rate limited separately and strictly enforced to prevent brute-force attacks.
+   * Registered first before universal API limiter so brute-force protection applies immediately.
    */
   const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
@@ -65,13 +67,20 @@ export function createApp() {
     message: { success: false, message: 'Too many requests. Please slow down.' },
   });
 
-  app.get('/api/health', (_req, res) => {
-    res.json({ ok: true, service: 'nirmala-api', env: env.nodeEnv });
-  });
-
-  // Universal API rate limiter applies to ALL /api requests
-  app.use('/api', apiLimiter);
+  // Mount strict login limiter FIRST
   app.use('/api/auth/login', loginLimiter);
+
+  // Health endpoint registered under apiLimiter to prevent DDoS/resource exhaustion
+  app.use('/api', apiLimiter);
+
+  app.get('/api/health', (_req, res) => {
+    res.json({
+      ok: true,
+      service: 'nirmala-api',
+      status: 'healthy',
+      ...(env.isProduction ? {} : { env: env.nodeEnv }),
+    });
+  });
 
   // Dynamic Routing Strategy:
   // 1. If MongoDB is connected, prioritize apiRouter (ACID multi-document transactions & Zod schemas).
@@ -102,8 +111,12 @@ export function createApp() {
   app.use('/api', notFoundHandler);
   app.use(express.static(path.join(currentDirectory, '..', 'public')));
 
-  app.get(/^(?!\/api).*/, (_req, res) => {
-    res.sendFile(path.join(currentDirectory, '..', 'public', 'index.html'));
+  // SPA fallback for all non-API paths
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api')) {
+      return next();
+    }
+    return res.sendFile(path.join(currentDirectory, '..', 'public', 'index.html'));
   });
   app.use(errorHandler);
 
