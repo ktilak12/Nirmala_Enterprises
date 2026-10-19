@@ -111,7 +111,7 @@ export async function recordManualMovement({ payload, actor, req }) {
  * how the current balance was arrived at, with each row linked back to the sale
  * or purchase that caused it.
  */
-export async function getProductLedger(productId, { from, to, limit = 500 } = {}) {
+export async function getProductLedger(productId, { from, to, limit = 500, sortOrder = 'desc' } = {}) {
   const product = await Product.findById(productId)
     .populate('category', 'name kind')
     .populate('unit', 'name symbol');
@@ -124,7 +124,8 @@ export async function getProductLedger(productId, { from, to, limit = 500 } = {}
     if (to) filter.date.$lte = new Date(to);
   }
 
-  const txns = await InventoryTxn.find(filter).sort({ date: -1, _id: -1 }).limit(limit);
+  const sortDir = sortOrder === 'asc' ? 1 : -1;
+  const txns = await InventoryTxn.find(filter).sort({ date: sortDir, _id: sortDir }).limit(limit);
   const integrity = await recomputeProductStock(productId);
 
   return { product, txns, integrity };

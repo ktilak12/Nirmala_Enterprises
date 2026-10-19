@@ -50,7 +50,7 @@ export async function postMovement({
   const before = round3(product.currentStock);
   const after = round3(before + delta);
 
-  if (delta < 0 && after < 0 && settings.inventory.blockNegativeStock) {
+  if (delta < 0 && after < 0 && (settings?.inventory?.blockNegativeStock ?? true)) {
     throw badRequest(
       `Insufficient stock for ${product.name}. ` +
         `Available ${before}, tried to remove ${Math.abs(delta)}.`,
