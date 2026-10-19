@@ -15,14 +15,34 @@ async function main() {
     .then(() => console.log('Database connected.'))
     .catch((err) => console.warn(`Database unavailable; public website is still online.\n${err.message}`));
 
+  let isShuttingDown = false;
   const shutdown = async (signal) => {
-    console.log(`\n${signal} received, shutting down.`);
-    server.close(async () => {
-      if (disconnectDatabase) await disconnectDatabase();
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+    console.log(`\n${signal} received, beginning graceful shutdown.`);
+
+    // If connections refuse to drain, force exit after 10s
+    const forceExitTimer = setTimeout(() => {
+      console.error('Graceful shutdown timed out after 10s, forcing exit.');
+      process.exit(1);
+    }, 10_000);
+    forceExitTimer.unref();
+
+    try {
+      await new Promise((resolve, reject) => {
+        server.close((err) => (err ? reject(err) : resolve()));
+      });
+      console.log('HTTP server connections drained.');
+
+      if (disconnectDatabase) {
+        await disconnectDatabase();
+        console.log('MongoDB connection closed.');
+      }
       process.exit(0);
-    });
-    // If connections refuse to drain, do not hang a deployment forever.
-    setTimeout(() => process.exit(1), 10_000).unref();
+    } catch (err) {
+      console.error('Error during shutdown:', err.message);
+      process.exit(1);
+    }
   };
 
   process.on('SIGINT', () => shutdown('SIGINT'));
