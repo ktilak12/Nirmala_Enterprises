@@ -5,7 +5,7 @@ import { env } from '../config/env.js';
 import { withTransaction } from '../config/db.js';
 import { permissionsForRole, ROLES } from '../config/permissions.js';
 import { User } from '../models/User.js';
-import { badRequest, conflict, forbidden, notFound, unauthorized, serviceUnavailable } from '../utils/errors.js';
+import { badRequest, conflict, forbidden, notFound, unauthorized, tooManyRequests, serviceUnavailable } from '../utils/errors.js';
 import { writeAudit } from './audit.js';
 
 /**
@@ -119,10 +119,14 @@ export async function login({ email, password, req }) {
   const cleanPassword = String(password ?? '');
   const clientIp = req?.ip || 'unknown';
 
+  if (!cleanEmail) {
+    throw badRequest('Enter your email or username.');
+  }
+
   // 1. Check lockout status
   const lockout = checkAccountLockout(cleanEmail, clientIp);
   if (lockout.isLocked) {
-    throw unauthorized(lockout.message);
+    throw tooManyRequests(lockout.message);
   }
 
   const isDbConnected = Boolean(mongoose.connection && mongoose.connection.readyState === 1);
@@ -153,14 +157,14 @@ export async function login({ email, password, req }) {
     }
 
     // In DEVELOPMENT mode ONLY, provide a secure offline fallback for the seed admin.
-    // Explicitly verify BOTH username and password (using constant-time buffer comparison).
+    // Explicitly verify BOTH username and password (using constant-time SHA-256 buffer comparison to prevent length leakage).
     const devAdminEmail = String(env.seedAdmin?.email || '').toLowerCase().trim();
     const devAdminPassword = String(env.seedAdmin?.password || '');
 
     if (devAdminEmail && devAdminPassword && cleanEmail === devAdminEmail) {
-      const inputBuf = Buffer.from(cleanPassword);
-      const targetBuf = Buffer.from(devAdminPassword);
-      if (inputBuf.length === targetBuf.length && crypto.timingSafeEqual(inputBuf, targetBuf)) {
+      const inputHash = crypto.createHash('sha256').update(cleanPassword).digest();
+      const targetHash = crypto.createHash('sha256').update(devAdminPassword).digest();
+      if (crypto.timingSafeEqual(inputHash, targetHash)) {
         authenticated = true;
         user = {
           _id: '65f000000000000000000001',
@@ -273,8 +277,12 @@ export async function createUser({ payload, actor, req }) {
 
   const userRole = Object.values(ROLES).includes(payload.role) ? payload.role : ROLES.SALES_STAFF;
 
+  if (userRole === ROLES.SUPER_ADMIN && actor?.role !== ROLES.SUPER_ADMIN) {
+    throw forbidden('Only a Super Administrator can create Super Administrator accounts.');
+  }
+
   if (
-    (userRole === ROLES.SUPER_ADMIN || userRole === ROLES.ADMIN) &&
+    userRole === ROLES.ADMIN &&
     actor?.role !== ROLES.SUPER_ADMIN &&
     actor?.role !== ROLES.ADMIN
   ) {
@@ -321,8 +329,12 @@ export async function createUser({ payload, actor, req }) {
 }
 
 export async function updateUser({ userId, payload, actor, req }) {
+  if (payload.role === ROLES.SUPER_ADMIN && actor?.role !== ROLES.SUPER_ADMIN) {
+    throw forbidden('Only a Super Administrator can assign the Super Administrator role.');
+  }
+
   if (
-    (payload.role === ROLES.SUPER_ADMIN || payload.role === ROLES.ADMIN) &&
+    payload.role === ROLES.ADMIN &&
     actor?.role !== ROLES.SUPER_ADMIN &&
     actor?.role !== ROLES.ADMIN
   ) {
@@ -332,6 +344,10 @@ export async function updateUser({ userId, payload, actor, req }) {
   return withTransaction(async (session) => {
     const user = await User.findById(userId).session(session);
     if (!user) throw notFound('User not found.');
+
+    if (user.role === ROLES.SUPER_ADMIN && actor?.role !== ROLES.SUPER_ADMIN) {
+      throw forbidden('Only a Super Administrator can modify a Super Administrator account.');
+    }
 
     const changes = [];
     const track = (field, next) => {
@@ -394,6 +410,10 @@ export async function resetPassword({ userId, newPassword, actor, req }) {
   return withTransaction(async (session) => {
     const user = await User.findById(userId).select('+passwordHash').session(session);
     if (!user) throw notFound('User not found.');
+
+    if (user.role === ROLES.SUPER_ADMIN && actor?.role !== ROLES.SUPER_ADMIN) {
+      throw forbidden('Only a Super Administrator can reset the password for a Super Administrator account.');
+    }
 
     user.passwordHash = await hashPassword(newPassword);
     user.mustChangePassword = true;

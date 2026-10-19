@@ -3,7 +3,7 @@ import { Router } from 'express';
 import { ROLE_LABELS } from '../config/permissions.js';
 import { authenticate, signToken } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
-import { changeOwnPassword, login, checkAccountLockout, recordFailedLogin, resetLoginAttempts } from '../services/auth.js';
+import { changeOwnPassword, login, resetLoginAttempts } from '../services/auth.js';
 import { asyncHandler } from '../utils/errors.js';
 import { changePasswordSchema, loginSchema } from '../validators/index.js';
 
@@ -17,16 +17,7 @@ authRouter.post(
     const username = String(email || uField || '').trim().toLowerCase();
     const clientIp = req.ip || 'unknown';
 
-    // 1. Enforce Account Lockout Check
-    const lockout = checkAccountLockout(username, clientIp);
-    if (lockout.isLocked) {
-      return res.status(429).json({
-        success: false,
-        message: lockout.message,
-      });
-    }
-
-    // 2. Database authentication service
+    // Authentication service checks lockout, validates credentials, and logs audits
     const result = await login({ email: username, password, req });
     const token = signToken({ _id: result.user._id, role: result.user.role });
     resetLoginAttempts(username, clientIp);
