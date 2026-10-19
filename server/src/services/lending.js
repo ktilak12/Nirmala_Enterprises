@@ -68,7 +68,10 @@ export async function createLoan({ payload, actor, req }) {
 
     // Taking an advance makes someone a borrower; in this business that party
     // is a farmer, so widen the record rather than create a second one.
-    if (!party.roles.includes('farmer')) party.roles.push('farmer');
+    if (!party.roles.includes('farmer')) {
+      party.roles.push('farmer');
+      party.markModified('roles');
+    }
 
     const principal = round2(payload.principal);
     if (principal <= 0) throw badRequest('Advance amount must be greater than zero.');
@@ -319,22 +322,26 @@ export async function addLoanAdjustment({ loanId, payload, actor, req }) {
 }
 
 /** Cancel an advance that was raised in error. Never deletes history. */
-export async function cancelLoan({ loanId, reason, actor, req }) {
+export async function cancelLoan({ loanId, reason, actor, req, force }) {
   return withTransaction(async (session) => {
     const loan = await Loan.findById(loanId).session(session);
     if (!loan) throw notFound('Advance not found.');
     if (loan.totalRepaid > 0) {
-      throw badRequest(
-        'This advance already has repayments recorded against it, so it cannot be ' +
-          'cancelled. Use a WRITE_OFF adjustment instead, which keeps the history.',
-      );
+      const isSuperAdmin = actor?.role === 'SUPER_ADMIN';
+      if (!isSuperAdmin || !force) {
+        throw badRequest(
+          'This advance already has repayments recorded against it, so it cannot be ' +
+            'cancelled. Use a WRITE_OFF adjustment instead, which keeps the history' +
+            (isSuperAdmin ? ' (or provide force: true as SUPER_ADMIN to override).' : '.'),
+        );
+      }
     }
 
     const party = await Party.findById(loan.party).session(session);
     const previous = loan.status;
     loan.status = 'CANCELLED';
     loan.outstanding = 0;
-    loan.notes = [loan.notes, `Cancelled: ${reason ?? 'no reason given'}`].filter(Boolean).join('\n');
+    loan.notes = [loan.notes, `Cancelled${force ? ' (forced by SUPER_ADMIN)' : ''}: ${reason ?? 'no reason given'}`].filter(Boolean).join('\n');
     await loan.save({ session });
 
     if (party) await syncPartyLoanBalance({ session, party });
@@ -346,7 +353,7 @@ export async function cancelLoan({ loanId, reason, actor, req }) {
       entity: 'Loan',
       entityId: loan._id,
       entityCode: loan.loanCode,
-      summary: `Advance ${loan.loanCode} cancelled: ${reason ?? 'no reason given'}`,
+      summary: `Advance ${loan.loanCode} cancelled${force ? ' (forced override)' : ''}: ${reason ?? 'no reason given'}`,
       changes: [{ field: 'status', from: previous, to: 'CANCELLED' }],
       req,
     });

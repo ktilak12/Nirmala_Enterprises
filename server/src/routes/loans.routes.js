@@ -120,6 +120,7 @@ loansRouter.post(
     const loan = await cancelLoan({
       loanId: req.valid.params.id,
       reason: req.valid.body.reason,
+      force: req.valid.body.force,
       actor: req.user,
       req,
     });
