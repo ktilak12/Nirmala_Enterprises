@@ -288,7 +288,11 @@ function sumField(docs, field) {
 }
 
 function escapeRegex(value) {
-  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  if (value === undefined || value === null) return '';
+  return String(value)
+    .trim()
+    .slice(0, 100)
+    .replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 export { escapeRegex };
