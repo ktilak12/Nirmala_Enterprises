@@ -196,3 +196,83 @@ body.sidebar-open .sidebar-overlay {
     font-size: 16px !important; /* Prevents auto-zoom on iOS inputs */
   }
 }
+
+/* ==========================================================================
+   CLEAN UI AESTHETICS & VISUAL POLISH
+   ========================================================================== */
+
+/* Refined Typography & Subpixel Rendering */
+body {
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Crisp Cards & Glassmorphic Surfaces */
+.bg-white {
+  border: 1px solid rgba(0, 69, 13, 0.08) !important;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.bg-white:hover {
+  border-color: rgba(0, 69, 13, 0.16) !important;
+}
+
+/* Clean, modern scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(0, 69, 13, 0.03);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 69, 13, 0.2);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 69, 13, 0.4);
+}
+
+/* Clean Tables with Subtle Zebra Striping & Header Contrast */
+table thead tr {
+  background: linear-gradient(180deg, #f8fbf8 0%, #f1f6f1 100%) !important;
+  border-bottom: 2px solid rgba(0, 69, 13, 0.1) !important;
+}
+
+table thead th {
+  font-weight: 700 !important;
+  letter-spacing: 0.03em !important;
+  color: #2e4d36 !important;
+  font-size: 11px !important;
+}
+
+table tbody tr:hover {
+  background-color: rgba(172, 244, 164, 0.15) !important;
+}
+
+/* Accessible & Crisp Form Elements */
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid #00450d !important;
+  outline-offset: 1px !important;
+  box-shadow: 0 0 0 4px rgba(172, 244, 164, 0.35) !important;
+}
+
+/* Polished Interactive Buttons */
+button {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+/* Status Badges Polish */
+.badge,
+span[class*="rounded-full"] {
+  letter-spacing: 0.02em;
+  font-weight: 700;
+}
+

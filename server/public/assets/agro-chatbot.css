@@ -471,17 +471,35 @@
   text-decoration: underline;
 }
 
-/* Mobile responsive adjustments */
+/* Mobile & Tablet responsive adjustments (Clean UI Alignment) */
+@media (max-width: 1023px) {
+  #agro-chatbot-root {
+    bottom: calc(72px + env(safe-area-inset-bottom, 8px)) !important;
+    right: 16px !important;
+  }
+}
+
 @media (max-width: 480px) {
   #agro-chatbot-root {
-    bottom: 16px;
-    right: 16px;
+    bottom: calc(72px + env(safe-area-inset-bottom, 8px)) !important;
+    right: 14px !important;
+  }
+  .agro-launcher-btn {
+    padding: 10px 16px;
+  }
+  .agro-launcher-icon {
+    font-size: 20px;
+  }
+  .agro-launcher-label span:first-child {
+    font-size: 12.5px;
   }
   .agro-chat-window {
-    width: calc(100vw - 32px);
-    height: calc(100vh - 80px);
+    width: calc(100vw - 28px);
+    max-height: calc(100dvh - 100px);
+    height: 520px;
     bottom: 0;
     right: 0;
     border-radius: 20px;
+    box-shadow: 0 16px 40px rgba(0, 40, 7, 0.28);
   }
 }
