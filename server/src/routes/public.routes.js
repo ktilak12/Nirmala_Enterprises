@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import mongoose from 'mongoose';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
 import rateLimit from 'express-rate-limit';
 import { Category } from '../models/Catalog.js';
 import { Product } from '../models/Product.js';
@@ -47,6 +49,20 @@ const contactLimiter = rateLimit({
 publicRouter.get(
   '/settings',
   asyncHandler(async (_req, res) => {
+    if (mongoose.connection?.readyState !== 1) {
+      return res.json({
+        company: {
+          name: 'Nirmala Enterprises',
+          tagline: 'Agro Trading & Farmer Support Hub',
+          address: 'Main Road, Jharigam, Nabarangpur, 764076, Odisha',
+          phone: '9777986964 / 8260774384',
+          whatsapp: '9777986964',
+          email: 'roshankumar1717@gmail.com',
+          businessHours: 'Monday – Saturday: 8:00 AM – 8:00 PM',
+          mapEmbedUrl: '',
+        },
+      });
+    }
     res.json(await getPublicSettings());
   }),
 );
@@ -64,6 +80,41 @@ publicRouter.get(
   '/products',
   validateQuery(publicProductsQuery),
   asyncHandler(async (req, res) => {
+    if (mongoose.connection?.readyState !== 1) {
+      let rawList = [];
+      try {
+        const filePath = path.resolve(process.cwd(), 'data', 'products.json');
+        if (fs.existsSync(filePath)) {
+          rawList = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        }
+      } catch {}
+      if (!rawList.length) {
+        rawList = [
+          { name: 'DAP 18:46:00 Fertilizer (50 kg)', brand: 'IFFCO / Coromandel', category: 'FERTILIZERS', unit: 'Bags', currentStock: 250 },
+          { name: 'Neem Coated Urea (45 kg)', brand: 'IFFCO / KRIBHCO', category: 'FERTILIZERS', unit: 'Bags', currentStock: 400 },
+          { name: 'Pioneer Hybrid Corn Seed P3396 (4 kg)', brand: 'Corteva Pioneer', category: 'SEEDS', unit: 'Packets', currentStock: 350 },
+          { name: 'Coragen Insecticide (150 ml)', brand: 'FMC / Rallis', category: 'PESTICIDES', unit: 'Bottles', currentStock: 85 }
+        ];
+      }
+      return res.json({
+        rows: rawList.map((p) => ({
+          name: p.name,
+          brand: p.brand || '',
+          description: p.description || '',
+          category: typeof p.category === 'object' ? (p.category?.name || '') : String(p.category || ''),
+          categoryKind: typeof p.category === 'object' ? (p.category?.kind || 'OTHER') : 'INPUTS',
+          unit: typeof p.unit === 'object' ? (p.unit?.symbol || '') : String(p.unit || ''),
+          isCommodity: Boolean(p.isCommodity),
+          inStock: Number(p.currentStock || 0) > 0,
+        })),
+        categories: [
+          { id: 'cat_fert', name: 'Fertilizers', kind: 'INPUTS' },
+          { id: 'cat_seeds', name: 'Seeds', kind: 'INPUTS' },
+          { id: 'cat_pest', name: 'Pesticides', kind: 'INPUTS' },
+          { id: 'cat_comm', name: 'Commodities', kind: 'COMMODITIES' }
+        ]
+      });
+    }
     const { category, kind } = req.valid.query;
     const filter = { isActive: true };
 
@@ -164,7 +215,19 @@ publicRouter.get(
     if (mongoose.Types.ObjectId.isValid(cleanId)) {
       filter.$or.push({ _id: cleanId });
     }
-    const invoice = await Invoice.findOne(filter).lean();
+    let invoice = null;
+    if (mongoose.connection?.readyState === 1) {
+      invoice = await Invoice.findOne(filter).lean();
+    } else {
+      try {
+        const filePath = path.resolve(process.cwd(), 'data', 'sales.json');
+        if (fs.existsSync(filePath)) {
+          const salesList = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+          invoice = salesList.find((s) => s._id === cleanId || s.invoiceNo === cleanId || s.invoiceNumber === cleanId || s.invoiceCode === cleanId);
+        }
+      } catch {}
+    }
+
     if (!invoice || !constantTimeCompare(invoice.accessKey, key)) {
       throw unauthorized('Unauthorized access or invoice not found.');
     }

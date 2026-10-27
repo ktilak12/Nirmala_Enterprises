@@ -83,37 +83,38 @@ export function createApp() {
   });
 
   // Dynamic Routing Strategy:
-  // 1. If MongoDB is connected, prioritize apiRouter (ACID multi-document transactions & Zod schemas).
+  // 1. Prioritize apiRouter (handles auth with offline fallback, public routes, transactions, Zod schemas).
   // 2. In development (!env.isProduction), fall through to mockRouter if an endpoint is not handled by apiRouter or when DB is offline.
   // 3. In production, never fallback to unvalidated mock storage.
   app.use('/api', (req, res, next) => {
     const isDbConnected = Boolean(mongoose.connection && mongoose.connection.readyState === 1);
-    if (isDbConnected) {
-      return apiRouter(req, res, (err) => {
-        if (err) return next(err);
-        if (!env.isProduction) {
-          return mockRouter(req, res, next);
-        }
-        return next();
-      });
-    }
-
-    if (!env.isProduction) {
+    if (!isDbConnected && !env.isProduction) {
+      if (req.path.startsWith('/auth') || req.path.startsWith('/public')) {
+        return apiRouter(req, res, next);
+      }
       return mockRouter(req, res, next);
     }
-
-    return res.status(503).json({
-      success: false,
-      message: 'Database service temporarily unavailable in production mode.',
+    return apiRouter(req, res, (err) => {
+      if (err) return next(err);
+      if (!env.isProduction) {
+        return mockRouter(req, res, next);
+      }
+      if (!isDbConnected && !req.path.startsWith('/public') && !req.path.startsWith('/auth')) {
+        return res.status(503).json({
+          success: false,
+          message: 'Database service temporarily unavailable in production mode.',
+        });
+      }
+      return next();
     });
   });
 
   app.use('/api', notFoundHandler);
   app.use(express.static(path.join(currentDirectory, '..', 'public')));
 
-  // SPA fallback for all non-API paths
-  app.get('*', (req, res, next) => {
-    if (req.path.startsWith('/api')) {
+  // SPA fallback for all non-API paths (Express 5 compatible)
+  app.use((req, res, next) => {
+    if (req.method !== 'GET' || req.path.startsWith('/api')) {
       return next();
     }
     return res.sendFile(path.join(currentDirectory, '..', 'public', 'index.html'));
