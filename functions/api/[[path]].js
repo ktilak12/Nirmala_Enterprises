@@ -211,6 +211,24 @@ async function verifyEdgeToken(token, secret) {
   }
 }
 
+async function constantTimeCompareEdge(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  try {
+    const enc = new TextEncoder();
+    const hashA = await crypto.subtle.digest('SHA-256', enc.encode(a));
+    const hashB = await crypto.subtle.digest('SHA-256', enc.encode(b));
+    const uA = new Uint8Array(hashA);
+    const uB = new Uint8Array(hashB);
+    let diff = 0;
+    for (let i = 0; i < uA.length; i++) {
+      diff |= uA[i] ^ uB[i];
+    }
+    return diff === 0;
+  } catch {
+    return false;
+  }
+}
+
 export async function onRequest(context) {
   const { request, env } = context;
   const url = new URL(request.url);
@@ -247,8 +265,20 @@ export async function onRequest(context) {
     let products = await getStore(env, 'products', []);
     if (!products || products.length === 0 || products.every(p => (p.name || '').includes('[ACCEPTANCE]'))) {
       products = [{"_id":"prod_001","productCode":"FRT-DAP-01","name":"DAP 18:46:00 Fertilizer (50 kg)","category":"FERTILIZERS","unit":"Bags","brand":"IFFCO / Coromandel","purchasePrice":1250,"sellingPrice":1350,"currentStock":250,"minStockAlert":30,"description":"Di-Ammonium Phosphate with 18% Nitrogen and 46% Phosphorus. Essential for robust root establishment and vigorous early corn growth."},{"_id":"prod_002","productCode":"FRT-UREA-02","name":"Neem Coated Urea (45 kg)","category":"FERTILIZERS","unit":"Bags","brand":"IFFCO / KRIBHCO","purchasePrice":242,"sellingPrice":266,"currentStock":400,"minStockAlert":50,"description":"High-efficiency 46% Nitrogen fertilizer coated with neem oil for sustained release and healthy vegetative leaf growth in maize crops."},{"_id":"prod_003","productCode":"FRT-SULPH-03","name":"Ammonium Sulphate Fertilizer (50 kg)","category":"FERTILIZERS","unit":"Bags","brand":"GSFC / FACT","purchasePrice":780,"sellingPrice":890,"currentStock":180,"minStockAlert":20,"description":"Contains 20.6% Ammoniacal Nitrogen and 24% Sulphur. Promotes high protein synthesis, cob development, and soil conditioning."},{"_id":"prod_004","productCode":"FRT-MOP-04","name":"Muriate of Potash - MOP (50 kg)","category":"FERTILIZERS","unit":"Bags","brand":"IPL / Coromandel","purchasePrice":1550,"sellingPrice":1700,"currentStock":150,"minStockAlert":20,"description":"Supplies 60% Potassium (K2O). Strengthens corn stalks against lodging, enhances drought resistance, and maximizes grain weight."},{"_id":"prod_005","productCode":"FRT-ZINC-05","name":"Zinc Sulphate 33% Monohydrate (5 kg)","category":"FERTILIZERS","unit":"Bags","brand":"Tata Rallis / Aries Agro","purchasePrice":380,"sellingPrice":450,"currentStock":90,"minStockAlert":15,"description":"Vital micronutrient for corn cultivation. Prevents white bud chlorosis, stimulates enzymatic activity, and ensures full cob grain filling."},{"_id":"prod_006","productCode":"SED-CRN-01","name":"Pioneer Hybrid Corn Seed P3396 (4 kg)","category":"SEEDS","unit":"Packets","brand":"Corteva Pioneer","purchasePrice":1650,"sellingPrice":1850,"currentStock":350,"minStockAlert":40,"description":"High-yielding champion yellow hybrid corn seed with strong root anchorage, uniform cob size, and excellent leaf blight tolerance."},{"_id":"prod_007","productCode":"SED-CRN-02","name":"Syngenta NK-6240 Hybrid Maize Seed (4 kg)","category":"SEEDS","unit":"Packets","brand":"Syngenta","purchasePrice":1580,"sellingPrice":1780,"currentStock":280,"minStockAlert":35,"description":"High test-weight hybrid corn seed. Outstanding drought tolerance and heavy grain filling tailored for Odisha soil conditions."},{"_id":"prod_008","productCode":"SED-CRN-03","name":"CP-333 Hybrid Corn Seed (4 kg)","category":"SEEDS","unit":"Packets","brand":"CP Seeds","purchasePrice":1500,"sellingPrice":1720,"currentStock":220,"minStockAlert":25,"description":"Commercial grain producer favorite with deep yellow-orange kernels, tight husk cover, and premium market selling value."},{"_id":"prod_009","productCode":"SED-PAD-04","name":"Swarna MTU-7029 Certified Paddy Seed (30 kg)","category":"SEEDS","unit":"Bags","brand":"OSSC Certified","purchasePrice":1100,"sellingPrice":1250,"currentStock":160,"minStockAlert":20,"description":"High-germination certified foundation paddy seed with high tillering capacity and pest tolerance."},{"_id":"prod_010","productCode":"PST-CRG-01","name":"Coragen Insecticide (150 ml)","category":"PESTICIDES","unit":"Bottles","brand":"FMC / Rallis","purchasePrice":1680,"sellingPrice":1850,"currentStock":85,"minStockAlert":10,"description":"Chlorantraniliprole 18.5% SC. Gold-standard control for Fall Armyworm (FAW) and stem borers in corn with long-lasting crop protection."},{"_id":"prod_011","productCode":"PST-EMA-02","name":"Emamectin Benzoate 5% SG (100 g)","category":"PESTICIDES","unit":"Packets","brand":"Crystal Crop Protection","purchasePrice":380,"sellingPrice":460,"currentStock":110,"minStockAlert":15,"description":"High-potency modern insecticide for rapid knockdown of caterpillars, leaf webbers, and whorl maggots in maize."},{"_id":"prod_012","productCode":"PST-CHP-03","name":"Chlorpyrifos 50% + Cypermethrin 5% EC (1 Ltr)","category":"PESTICIDES","unit":"Bottles","brand":"Tata Rallis","purchasePrice":520,"sellingPrice":620,"currentStock":75,"minStockAlert":10,"description":"Broad-spectrum contact and stomach insecticide for soil pests, termites, and foliage-feeding chewing insects."},{"_id":"prod_013","productCode":"PST-GLY-04","name":"Glyphosate 41% SL Herbicide (1 Ltr)","category":"PESTICIDES","unit":"Bottles","brand":"Excel Crop Care","purchasePrice":420,"sellingPrice":510,"currentStock":95,"minStockAlert":12,"description":"Systemic broad-spectrum weedicide for non-crop and pre-sowing total field weed clearance."},{"_id":"prod_014","productCode":"PST-MNZ-05","name":"Mancozeb 75% WP Fungicide (1 kg)","category":"PESTICIDES","unit":"Packets","brand":"Indofil M-45","purchasePrice":460,"sellingPrice":540,"currentStock":120,"minStockAlert":15,"description":"Contact fungicide with multisite action against leaf spots, turcicum blight, and downy mildew in maize and paddy."}];
-    }
-    return jsonResponse({ success: true, data: products, rows: products, total: products.length });
+    // Section 10 Allow-list: Never expose purchasePrice, sellingPrice, margin, or exact stock count to public
+    const safeProducts = products.map(p => ({
+      _id: p._id,
+      name: p.name,
+      productCode: p.productCode || '',
+      brand: p.brand || '',
+      description: p.description || '',
+      category: typeof p.category === 'object' ? (p.category?.name || '') : String(p.category || ''),
+      categoryKind: typeof p.category === 'object' ? (p.category?.kind || 'OTHER') : 'INPUTS',
+      unit: typeof p.unit === 'object' ? (p.unit?.symbol || '') : String(p.unit || ''),
+      isCommodity: Boolean(p.isCommodity),
+      inStock: Number(p.currentStock || 0) > 0
+    }));
+    return jsonResponse({ success: true, data: safeProducts, rows: safeProducts, total: safeProducts.length });
   }
 
   if (path === '/api/public/inquiries' || path === '/api/public/contact') {
@@ -268,7 +298,8 @@ export async function onRequest(context) {
       const found = sales.find(s => s._id === lastPart || s.invoiceNo === lastPart || s.invoiceNumber === lastPart || s.invoiceCode === lastPart);
       if (found) {
         const reqKey = url.searchParams.get('key') || request.headers.get('x-invoice-key') || '';
-        if (!found.accessKey || reqKey !== found.accessKey) {
+        const isKeyValid = await constantTimeCompareEdge(reqKey, found.accessKey);
+        if (!found.accessKey || !isKeyValid) {
           return jsonResponse({ success: false, message: 'Unauthorized. Valid invoice access key required to view customer receipt.' }, 401);
         }
         const { accessKey: _ak, ...safeFound } = found;
