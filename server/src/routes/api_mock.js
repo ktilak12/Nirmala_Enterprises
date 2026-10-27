@@ -306,7 +306,19 @@ mockRouter.get('/public/mandi-rates', (_req, res) => {
 });
 
 mockRouter.get('/public/products', (_req, res) => {
-  res.json({ success: true, data: products });
+  const safeProducts = products.map(p => ({
+    _id: p._id,
+    name: p.name,
+    productCode: p.productCode || '',
+    brand: p.brand || '',
+    description: p.description || '',
+    category: typeof p.category === 'object' ? (p.category?.name || '') : String(p.category || ''),
+    categoryKind: typeof p.category === 'object' ? (p.category?.kind || 'OTHER') : 'INPUTS',
+    unit: typeof p.unit === 'object' ? (p.unit?.symbol || '') : String(p.unit || ''),
+    isCommodity: Boolean(p.isCommodity),
+    inStock: Number(p.currentStock || 0) > 0
+  }));
+  res.json({ success: true, data: safeProducts, rows: safeProducts, total: safeProducts.length });
 });
 
 mockRouter.post('/public/inquiries', (req, res) => {
@@ -323,12 +335,23 @@ function escapeHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
+function constantTimeCompare(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  try {
+    const hashA = crypto.createHash('sha256').update(a).digest();
+    const hashB = crypto.createHash('sha256').update(b).digest();
+    return crypto.timingSafeEqual(hashA, hashB);
+  } catch {
+    return false;
+  }
+}
+
 mockRouter.get('/public/invoices/:id', (req, res) => {
   const { id } = req.params;
   const key = req.query.key || req.headers['x-invoice-key'];
   const sale = sales.find(s => s._id === id || s.invoiceNo === id || s.invoiceNumber === id);
   if (!sale) return res.status(404).json({ success: false, message: 'Invoice not found.' });
-  if (!sale.accessKey || key !== sale.accessKey) {
+  if (!sale.accessKey || !constantTimeCompare(key, sale.accessKey)) {
     return res.status(401).json({ success: false, message: 'Unauthorized. Valid invoice access key required to view customer receipt.' });
   }
   const { accessKey: _, ...safeSale } = sale;
@@ -340,7 +363,7 @@ mockRouter.get('/public/invoices/:id/download', (req, res) => {
   const key = req.query.key || req.headers['x-invoice-key'];
   const sale = sales.find(s => s._id === id || s.invoiceNo === id || s.invoiceNumber === id);
   if (!sale) return res.status(404).send('<h2>Invoice Not Found</h2>');
-  if (!sale.accessKey || key !== sale.accessKey) {
+  if (!sale.accessKey || !constantTimeCompare(key, sale.accessKey)) {
     return res.status(401).send('<h2>Unauthorized: Valid invoice key required.</h2>');
   }
 
