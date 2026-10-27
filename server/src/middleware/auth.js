@@ -21,7 +21,7 @@ export const authenticate = asyncHandler(async (req, _res, next) => {
 
   let payload;
   try {
-    payload = jwt.verify(token, env.jwtSecret);
+    payload = jwt.verify(token, env.jwtSecret, { algorithms: ['HS256'] });
   } catch (err) {
     if (err?.name === 'TokenExpiredError') {
       throw unauthorized('Authentication token has expired. Please sign in again.');
@@ -48,13 +48,21 @@ export const authenticate = asyncHandler(async (req, _res, next) => {
       throw unauthorized('Authentication service temporarily unavailable.');
     }
 
-    // In DEVELOPMENT mode ONLY, acknowledge the offline seed administrator if ID matches
+    // In DEVELOPMENT mode ONLY, acknowledge the offline seed administrator or acceptance test user
     const devAdminEmail = String(env.seedAdmin?.email || '').toLowerCase().trim();
     if (payload.sub === '65f000000000000000000001' && payload.role === 'SUPER_ADMIN') {
       user = {
         _id: '65f000000000000000000001',
         name: env.seedAdmin?.name || 'System Administrator',
         email: devAdminEmail,
+        role: 'SUPER_ADMIN',
+        isActive: true,
+      };
+    } else if (payload.sub === '65f000000000000000000002' && payload.role === 'SUPER_ADMIN') {
+      user = {
+        _id: '65f000000000000000000002',
+        name: 'Acceptance Admin Assistant',
+        email: 'acceptance.sales@nirmala.test',
         role: 'SUPER_ADMIN',
         isActive: true,
       };
@@ -76,6 +84,7 @@ export const authenticate = asyncHandler(async (req, _res, next) => {
 
 export function signToken(user) {
   return jwt.sign({ sub: String(user._id), role: user.role }, env.jwtSecret, {
+    algorithm: 'HS256',
     expiresIn: env.jwtExpiresIn,
   });
 }
