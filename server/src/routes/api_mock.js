@@ -1395,12 +1395,8 @@ mockRouter.post('/sales/:id/payments', (req, res) => {
 // restricted to SUPER_ADMIN to prevent QR-code session theft and message leakage.
 
 mockRouter.get('/whatsapp/status', authenticate, (req, res) => {
-  const fullStatus = whatsappGateway.getStatus();
-  // Only SUPER_ADMIN receives the QR code data URL — it grants full WhatsApp session access
-  if (req.user?.role !== 'SUPER_ADMIN') {
-    const { qrDataUrl: _stripped, ...safeStatus } = fullStatus;
-    return res.json({ ...safeStatus, qrDataUrl: null });
-  }
+  const isSuperAdmin = req.user?.role === 'SUPER_ADMIN';
+  const fullStatus = whatsappGateway.getStatus(isSuperAdmin);
   res.json(fullStatus);
 });
 

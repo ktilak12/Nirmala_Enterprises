@@ -19,6 +19,7 @@ import { salesRouter } from './sales.routes.js';
 import { searchRouter } from './search.routes.js';
 import { settingsRouter } from './settings.routes.js';
 import { usersRouter } from './users.routes.js';
+import { whatsappRouter } from './whatsapp.routes.js';
 
 import { getChatbotResponse } from '../services/agroChatbotEngine.js';
 
@@ -68,3 +69,4 @@ apiRouter.use('/enquiries', enquiriesRouter);
 apiRouter.use('/users', usersRouter);
 apiRouter.use('/settings', settingsRouter);
 apiRouter.use('/audit', auditRouter);
+apiRouter.use('/whatsapp', whatsappRouter);
