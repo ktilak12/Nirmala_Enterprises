@@ -69,6 +69,9 @@ const saleSchema = new mongoose.Schema(
     invoice: { type: mongoose.Schema.Types.ObjectId, ref: 'Invoice' },
     invoiceCode: { type: String },
 
+    /** Idempotency key prevents double billing on counter network hiccups or double-clicks */
+    idempotencyKey: { type: String, trim: true, index: true, sparse: true },
+
     /** True when the goods sold were commodities rather than retail inputs. */
     isCommoditySale: { type: Boolean, default: false },
 

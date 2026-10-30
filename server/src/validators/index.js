@@ -234,6 +234,7 @@ export const createSaleSchema = z.object({
   amountPaid: money.optional(),
   paymentMethod: z.enum(PAYMENT_METHODS).optional(),
   paymentReference: z.string().trim().optional(),
+  idempotencyKey: z.string().trim().max(100).optional(),
   notes: z.string().trim().optional(),
 });
 
