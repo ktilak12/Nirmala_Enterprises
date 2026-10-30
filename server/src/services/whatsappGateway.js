@@ -16,8 +16,13 @@ const SESSION_DIR = path.join(DATA_DIR, 'whatsapp_session');
 const SETTINGS_FILE = path.join(DATA_DIR, 'whatsapp_settings.json');
 const OUTBOX_FILE = path.join(DATA_DIR, 'whatsapp_outbox.json');
 
-if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-if (!fs.existsSync(SESSION_DIR)) fs.mkdirSync(SESSION_DIR, { recursive: true });
+// Ensure secure directory permissions (0o700)
+try {
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true, mode: 0o700 });
+  if (!fs.existsSync(SESSION_DIR)) fs.mkdirSync(SESSION_DIR, { recursive: true, mode: 0o700 });
+} catch (e) {
+  console.warn('[WA GATEWAY] Directory init warning:', e.message);
+}
 
 function getSettings() {
   try {
@@ -59,7 +64,7 @@ async function logOutbox(entry) {
       timestamp: new Date().toISOString(),
       ...entry
     });
-    // Keep last 100 entries
+    // Keep last 100 entries only to save space
     if (outbox.length > 100) outbox = outbox.slice(0, 100);
     await fs.promises.writeFile(OUTBOX_FILE, JSON.stringify(outbox, null, 2), 'utf8');
   } catch (e) {
@@ -68,6 +73,8 @@ async function logOutbox(entry) {
 }
 
 const MAX_RETRY = 10;
+const MIN_DISPATCH_DELAY_MS = 2500; // Anti-spam delay between messages
+const DEDUP_WINDOW_MS = 10 * 60 * 1000; // 10 minutes deduplication window
 
 class WhatsAppGatewayService {
   constructor() {
@@ -78,6 +85,9 @@ class WhatsAppGatewayService {
     this.lastConnectedTime = null;
     this.retryCount = 0;
     this.initPromise = null;
+    this.messageQueue = [];
+    this.isProcessingQueue = false;
+    this.recentAlerts = new Map(); // key -> timestamp for deduping
   }
 
   async initialize() {
@@ -143,10 +153,10 @@ class WhatsAppGatewayService {
               this._startSocket();
             }, delay);
           } else {
-            // Logged out: clean session folder
+            // Logged out: clean session folder securely
             try {
               fs.rmSync(SESSION_DIR, { recursive: true, force: true });
-              fs.mkdirSync(SESSION_DIR, { recursive: true });
+              fs.mkdirSync(SESSION_DIR, { recursive: true, mode: 0o700 });
             } catch {}
             this.retryCount = 0;
           }
@@ -157,6 +167,7 @@ class WhatsAppGatewayService {
           this.lastConnectedTime = new Date().toISOString();
           this.retryCount = 0;
           console.log('[WA GATEWAY] WhatsApp Gateway connected successfully and ready for background notifications.');
+          this._processQueue();
         }
       });
 
@@ -167,16 +178,28 @@ class WhatsAppGatewayService {
     }
   }
 
-  getStatus() {
+  getStatus(isSuperAdmin = false) {
     const settings = getSettings();
-    return {
+    const base = {
       success: true,
       status: this.status, // CONNECTED, QR_READY, CONNECTING, DISCONNECTED
       connected: this.status === 'CONNECTED',
-      qrDataUrl: this.qrDataUrl,
       lastConnectedTime: this.lastConnectedTime,
       adminPhone: settings.adminPhone,
-      autoSendOnCheckout: settings.autoSendOnCheckout !== false
+      autoSendOnCheckout: settings.autoSendOnCheckout !== false,
+      queueLength: this.messageQueue.length,
+    };
+
+    // TIGHT SECURITY: Only SUPER_ADMIN gets the QR Code Data URL to prevent unauthorized pairing
+    if (isSuperAdmin) {
+      return {
+        ...base,
+        qrDataUrl: this.qrDataUrl,
+      };
+    }
+    return {
+      ...base,
+      qrDataUrl: null,
     };
   }
 
@@ -192,46 +215,139 @@ class WhatsAppGatewayService {
 
   async updateSettings(newSettings) {
     const current = getSettings();
-    const updated = { ...current, ...newSettings };
+    const cleanPhone = newSettings.adminPhone ? String(newSettings.adminPhone).replace(/\D/g, '') : current.adminPhone;
+    const updated = {
+      ...current,
+      ...newSettings,
+      adminPhone: cleanPhone || current.adminPhone
+    };
     await saveSettings(updated);
     return updated;
   }
 
+  /**
+   * Strict phone sanitization and validation.
+   * Accepts:
+   *  - 10 digits (assumed India, starting with 6, 7, 8, or 9) -> prepends 91
+   *  - 12 digits (starting with 91, next digit 6-9)
+   *  - 11-15 digits (international with valid country code)
+   */
   formatJid(phone) {
-    let clean = String(phone || '').replace(/[^0-9]/g, '');
+    if (!phone) return null;
+    let clean = String(phone).replace(/[^0-9]/g, '');
     if (!clean) return null;
-    if (clean.length === 10) clean = '91' + clean;
+
+    if (clean.length === 10 && /^[6-9]\d{9}$/.test(clean)) {
+      clean = '91' + clean;
+    } else if (clean.length === 12 && clean.startsWith('91') && /^[6-9]/.test(clean.substring(2))) {
+      // Already valid 12-digit Indian number
+    } else if (clean.length >= 11 && clean.length <= 15) {
+      // Valid international length
+    } else {
+      return null; // Malformed phone number rejected
+    }
+
     return `${clean}@s.whatsapp.net`;
   }
 
+  /**
+   * Enqueues an outbound background message and processes with anti-spam rate limiting.
+   */
   async sendBackgroundMessage(toPhone, messageText) {
     const jid = this.formatJid(toPhone);
     if (!jid) {
       await logOutbox({ to: toPhone, text: messageText, status: 'SKIPPED_INVALID_PHONE' });
-      return { success: false, reason: 'Invalid phone number' };
+      return { success: false, reason: 'Invalid or malformed phone number' };
     }
 
-    if (this.status !== 'CONNECTED' || !this.sock) {
-      // Gateway is offline or not paired yet: queue message
-      await logOutbox({ to: toPhone, text: messageText, status: 'QUEUED_OFFLINE' });
-      return { success: false, reason: 'WhatsApp Gateway not linked / offline' };
+    if (!messageText || typeof messageText !== 'string' || !messageText.trim()) {
+      return { success: false, reason: 'Empty message text' };
     }
+
+    // Limit length to 4096 chars to prevent buffer overflow attacks
+    const sanitizedText = messageText.slice(0, 4096).trim();
+
+    return new Promise((resolve) => {
+      this.messageQueue.push({
+        jid,
+        toPhone,
+        text: sanitizedText,
+        resolve,
+        timestamp: Date.now()
+      });
+
+      // Avoid queue bloat (> 100 queued items sheds oldest)
+      if (this.messageQueue.length > 100) {
+        const dropped = this.messageQueue.shift();
+        dropped.resolve({ success: false, reason: 'Message queue overflow, dropped' });
+      }
+
+      this._processQueue();
+    });
+  }
+
+  async _processQueue() {
+    if (this.isProcessingQueue) return;
+    this.isProcessingQueue = true;
 
     try {
-      await this.sock.sendMessage(jid, { text: messageText });
-      await logOutbox({ to: toPhone, text: messageText, status: 'SENT' });
-      return { success: true };
-    } catch (err) {
-      console.error('[WA GATEWAY] Send error to ' + toPhone + ':', err.message);
-      await logOutbox({ to: toPhone, text: messageText, status: 'FAILED', error: err.message });
-      return { success: false, error: err.message };
+      while (this.messageQueue.length > 0) {
+        if (this.status !== 'CONNECTED' || !this.sock) {
+          // If offline, drain or hold
+          const item = this.messageQueue.shift();
+          await logOutbox({ to: item.toPhone, text: item.text, status: 'QUEUED_OFFLINE' });
+          item.resolve({ success: false, reason: 'WhatsApp Gateway not linked / offline' });
+          continue;
+        }
+
+        const item = this.messageQueue.shift();
+        try {
+          await this.sock.sendMessage(item.jid, { text: item.text });
+          await logOutbox({ to: item.toPhone, text: item.text, status: 'SENT' });
+          item.resolve({ success: true });
+        } catch (err) {
+          console.error('[WA GATEWAY] Send error to ' + item.toPhone + ':', err.message);
+          await logOutbox({ to: item.toPhone, text: item.text, status: 'FAILED', error: err.message });
+          item.resolve({ success: false, error: err.message });
+        }
+
+        // Enforce anti-spam delay with slight random jitter to prevent Meta detection
+        if (this.messageQueue.length > 0) {
+          const jitter = Math.floor(Math.random() * 1000);
+          await new Promise((r) => setTimeout(r, MIN_DISPATCH_DELAY_MS + jitter));
+        }
+      }
+    } finally {
+      this.isProcessingQueue = false;
     }
   }
 
+  /**
+   * High-level helper to dispatch silent bill alerts to customer and administrator.
+   * Includes anti-duplicate guard so rapid double-clicking never sends duplicate alerts.
+   */
   async sendSilentSaleAlerts(sale, host = 'localhost:5000', protocol = 'http') {
     const settings = getSettings();
     const adminPhone = settings.adminPhone || process.env.SUPER_ADMIN_PHONE || '';
     const invoiceCode = sale.invoiceCode || sale.saleCode || sale.invoiceNo || 'N/A';
+
+    // Anti-duplicate check (10-minute window)
+    const now = Date.now();
+    const dedupKey = `sale_${invoiceCode}`;
+    const lastSent = this.recentAlerts.get(dedupKey);
+    if (lastSent && (now - lastSent) < DEDUP_WINDOW_MS) {
+      console.log(`[WA GATEWAY] Skipped duplicate alert for invoice ${invoiceCode}`);
+      return { success: true, reason: 'DUPLICATE_SKIPPED' };
+    }
+    this.recentAlerts.set(dedupKey, now);
+
+    // Housekeeping: clean older dedup entries
+    if (this.recentAlerts.size > 200) {
+      for (const [k, time] of this.recentAlerts.entries()) {
+        if (now - time > DEDUP_WINDOW_MS) this.recentAlerts.delete(k);
+      }
+    }
+
     const accessQuery = sale.accessKey ? `?key=${sale.accessKey}` : '';
     const invoiceUrl = `${protocol}://${host}/invoice/${invoiceCode}${accessQuery}`;
 
@@ -328,11 +444,11 @@ _Automated Alert to Admin_`;
     this.rawQr = null;
     try {
       fs.rmSync(SESSION_DIR, { recursive: true, force: true });
-      fs.mkdirSync(SESSION_DIR, { recursive: true });
+      fs.mkdirSync(SESSION_DIR, { recursive: true, mode: 0o700 });
     } catch {}
     this.initPromise = null;
-    // Explicit disconnect does NOT auto-reconnect
-    return { success: true, message: 'WhatsApp Gateway unlinked.' };
+    this.messageQueue = [];
+    return { success: true, message: 'WhatsApp Gateway unlinked and credentials securely wiped.' };
   }
 }
 
