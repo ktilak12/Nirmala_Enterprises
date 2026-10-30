@@ -2,137 +2,10 @@
 // Binds to NIRMALA_DB KV namespace for 100% online persistence
 
 let memoryStore = {
-  products: [{"_id":"prod_001","productCode":"FRT-DAP-01","name":"DAP 18:46:00 Fertilizer (50 kg)","category":"FERTILIZERS","unit":"Bags","brand":"IFFCO / Coromandel","purchasePrice":1250,"sellingPrice":1350,"currentStock":250,"minStockAlert":30,"description":"Di-Ammonium Phosphate with 18% Nitrogen and 46% Phosphorus. Essential for robust root establishment and vigorous early corn growth."},{"_id":"prod_002","productCode":"FRT-UREA-02","name":"Neem Coated Urea (45 kg)","category":"FERTILIZERS","unit":"Bags","brand":"IFFCO / KRIBHCO","purchasePrice":242,"sellingPrice":266,"currentStock":400,"minStockAlert":50,"description":"High-efficiency 46% Nitrogen fertilizer coated with neem oil for sustained release and healthy vegetative leaf growth in maize crops."},{"_id":"prod_003","productCode":"FRT-SULPH-03","name":"Ammonium Sulphate Fertilizer (50 kg)","category":"FERTILIZERS","unit":"Bags","brand":"GSFC / FACT","purchasePrice":780,"sellingPrice":890,"currentStock":180,"minStockAlert":20,"description":"Contains 20.6% Ammoniacal Nitrogen and 24% Sulphur. Promotes high protein synthesis, cob development, and soil conditioning."},{"_id":"prod_004","productCode":"FRT-MOP-04","name":"Muriate of Potash - MOP (50 kg)","category":"FERTILIZERS","unit":"Bags","brand":"IPL / Coromandel","purchasePrice":1550,"sellingPrice":1700,"currentStock":150,"minStockAlert":20,"description":"Supplies 60% Potassium (K2O). Strengthens corn stalks against lodging, enhances drought resistance, and maximizes grain weight."},{"_id":"prod_005","productCode":"FRT-ZINC-05","name":"Zinc Sulphate 33% Monohydrate (5 kg)","category":"FERTILIZERS","unit":"Bags","brand":"Tata Rallis / Aries Agro","purchasePrice":380,"sellingPrice":450,"currentStock":90,"minStockAlert":15,"description":"Vital micronutrient for corn cultivation. Prevents white bud chlorosis, stimulates enzymatic activity, and ensures full cob grain filling."},{"_id":"prod_006","productCode":"SED-CRN-01","name":"Pioneer Hybrid Corn Seed P3396 (4 kg)","category":"SEEDS","unit":"Packets","brand":"Corteva Pioneer","purchasePrice":1650,"sellingPrice":1850,"currentStock":350,"minStockAlert":40,"description":"High-yielding champion yellow hybrid corn seed with strong root anchorage, uniform cob size, and excellent leaf blight tolerance."},{"_id":"prod_007","productCode":"SED-CRN-02","name":"Syngenta NK-6240 Hybrid Maize Seed (4 kg)","category":"SEEDS","unit":"Packets","brand":"Syngenta","purchasePrice":1580,"sellingPrice":1780,"currentStock":280,"minStockAlert":35,"description":"High test-weight hybrid corn seed. Outstanding drought tolerance and heavy grain filling tailored for Odisha soil conditions."},{"_id":"prod_008","productCode":"SED-CRN-03","name":"CP-333 Hybrid Corn Seed (4 kg)","category":"SEEDS","unit":"Packets","brand":"CP Seeds","purchasePrice":1500,"sellingPrice":1720,"currentStock":220,"minStockAlert":25,"description":"Commercial grain producer favorite with deep yellow-orange kernels, tight husk cover, and premium market selling value."},{"_id":"prod_009","productCode":"SED-PAD-04","name":"Swarna MTU-7029 Certified Paddy Seed (30 kg)","category":"SEEDS","unit":"Bags","brand":"OSSC Certified","purchasePrice":1100,"sellingPrice":1250,"currentStock":160,"minStockAlert":20,"description":"High-germination certified foundation paddy seed with high tillering capacity and pest tolerance."},{"_id":"prod_010","productCode":"PST-CRG-01","name":"Coragen Insecticide (150 ml)","category":"PESTICIDES","unit":"Bottles","brand":"FMC / Rallis","purchasePrice":1680,"sellingPrice":1850,"currentStock":85,"minStockAlert":10,"description":"Chlorantraniliprole 18.5% SC. Gold-standard control for Fall Armyworm (FAW) and stem borers in corn with long-lasting crop protection."},{"_id":"prod_011","productCode":"PST-EMA-02","name":"Emamectin Benzoate 5% SG (100 g)","category":"PESTICIDES","unit":"Packets","brand":"Crystal Crop Protection","purchasePrice":380,"sellingPrice":460,"currentStock":110,"minStockAlert":15,"description":"High-potency modern insecticide for rapid knockdown of caterpillars, leaf webbers, and whorl maggots in maize."},{"_id":"prod_012","productCode":"PST-CHP-03","name":"Chlorpyrifos 50% + Cypermethrin 5% EC (1 Ltr)","category":"PESTICIDES","unit":"Bottles","brand":"Tata Rallis","purchasePrice":520,"sellingPrice":620,"currentStock":75,"minStockAlert":10,"description":"Broad-spectrum contact and stomach insecticide for soil pests, termites, and foliage-feeding chewing insects."},{"_id":"prod_013","productCode":"PST-GLY-04","name":"Glyphosate 41% SL Herbicide (1 Ltr)","category":"PESTICIDES","unit":"Bottles","brand":"Excel Crop Care","purchasePrice":420,"sellingPrice":510,"currentStock":95,"minStockAlert":12,"description":"Systemic broad-spectrum weedicide for non-crop and pre-sowing total field weed clearance."},{"_id":"prod_014","productCode":"PST-MNZ-05","name":"Mancozeb 75% WP Fungicide (1 kg)","category":"PESTICIDES","unit":"Packets","brand":"Indofil M-45","purchasePrice":460,"sellingPrice":540,"currentStock":120,"minStockAlert":15,"description":"Contact fungicide with multisite action against leaf spots, turcicum blight, and downy mildew in maize and paddy."}],
+  products: [{"_id":"prod_001","productCode":"FRT-DAP-01","name":"DAP 18:46:00 Fertilizer (50 kg)","category":"FERTILIZERS","unit":"Bags","brand":"IFFCO / Coromandel","purchasePrice":1250,"sellingPrice":1350,"currentStock":0,"minStockAlert":30,"description":"Di-Ammonium Phosphate with 18% Nitrogen and 46% Phosphorus. Essential for robust root establishment and vigorous early corn growth."},{"_id":"prod_002","productCode":"FRT-UREA-02","name":"Neem Coated Urea (45 kg)","category":"FERTILIZERS","unit":"Bags","brand":"IFFCO / KRIBHCO","purchasePrice":242,"sellingPrice":266,"currentStock":0,"minStockAlert":50,"description":"High-efficiency 46% Nitrogen fertilizer coated with neem oil for sustained release and healthy vegetative leaf growth in maize crops."},{"_id":"prod_003","productCode":"FRT-SULPH-03","name":"Ammonium Sulphate Fertilizer (50 kg)","category":"FERTILIZERS","unit":"Bags","brand":"GSFC / FACT","purchasePrice":780,"sellingPrice":890,"currentStock":0,"minStockAlert":20,"description":"Contains 20.6% Ammoniacal Nitrogen and 24% Sulphur. Promotes high protein synthesis, cob development, and soil conditioning."},{"_id":"prod_004","productCode":"FRT-MOP-04","name":"Muriate of Potash - MOP (50 kg)","category":"FERTILIZERS","unit":"Bags","brand":"IPL / Coromandel","purchasePrice":1550,"sellingPrice":1700,"currentStock":0,"minStockAlert":20,"description":"Supplies 60% Potassium (K2O). Strengthens corn stalks against lodging, enhances drought resistance, and maximizes grain weight."},{"_id":"prod_005","productCode":"FRT-ZINC-05","name":"Zinc Sulphate 33% Monohydrate (5 kg)","category":"FERTILIZERS","unit":"Bags","brand":"Tata Rallis / Aries Agro","purchasePrice":380,"sellingPrice":450,"currentStock":0,"minStockAlert":15,"description":"Vital micronutrient for corn cultivation. Prevents white bud chlorosis, stimulates enzymatic activity, and ensures full cob grain filling."},{"_id":"prod_006","productCode":"SED-CRN-01","name":"Pioneer Hybrid Corn Seed P3396 (4 kg)","category":"SEEDS","unit":"Packets","brand":"Corteva Pioneer","purchasePrice":1650,"sellingPrice":1850,"currentStock":0,"minStockAlert":40,"description":"High-yielding champion yellow hybrid corn seed with strong root anchorage, uniform cob size, and excellent leaf blight tolerance."},{"_id":"prod_007","productCode":"SED-CRN-02","name":"Syngenta NK-6240 Hybrid Maize Seed (4 kg)","category":"SEEDS","unit":"Packets","brand":"Syngenta","purchasePrice":1580,"sellingPrice":1780,"currentStock":0,"minStockAlert":35,"description":"High test-weight hybrid corn seed. Outstanding drought tolerance and heavy grain filling tailored for Odisha soil conditions."},{"_id":"prod_008","productCode":"SED-CRN-03","name":"CP-333 Hybrid Corn Seed (4 kg)","category":"SEEDS","unit":"Packets","brand":"CP Seeds","purchasePrice":1500,"sellingPrice":1720,"currentStock":0,"minStockAlert":25,"description":"Commercial grain producer favorite with deep yellow-orange kernels, tight husk cover, and premium market selling value."},{"_id":"prod_009","productCode":"SED-PAD-04","name":"Swarna MTU-7029 Certified Paddy Seed (30 kg)","category":"SEEDS","unit":"Bags","brand":"OSSC Certified","purchasePrice":1100,"sellingPrice":1250,"currentStock":0,"minStockAlert":20,"description":"High-germination certified foundation paddy seed with high tillering capacity and pest tolerance."},{"_id":"prod_010","productCode":"PST-CRG-01","name":"Coragen Insecticide (150 ml)","category":"PESTICIDES","unit":"Bottles","brand":"FMC / Rallis","purchasePrice":1680,"sellingPrice":1850,"currentStock":0,"minStockAlert":10,"description":"Chlorantraniliprole 18.5% SC. Gold-standard control for Fall Armyworm (FAW) and stem borers in corn with long-lasting crop protection."},{"_id":"prod_011","productCode":"PST-EMA-02","name":"Emamectin Benzoate 5% SG (100 g)","category":"PESTICIDES","unit":"Packets","brand":"Crystal Crop Protection","purchasePrice":380,"sellingPrice":460,"currentStock":0,"minStockAlert":15,"description":"High-potency modern insecticide for rapid knockdown of caterpillars, leaf webbers, and whorl maggots in maize."},{"_id":"prod_012","productCode":"PST-CHP-03","name":"Chlorpyrifos 50% + Cypermethrin 5% EC (1 Ltr)","category":"PESTICIDES","unit":"Bottles","brand":"Tata Rallis","purchasePrice":520,"sellingPrice":620,"currentStock":0,"minStockAlert":10,"description":"Broad-spectrum contact and stomach insecticide for soil pests, termites, and foliage-feeding chewing insects."},{"_id":"prod_013","productCode":"PST-GLY-04","name":"Glyphosate 41% SL Herbicide (1 Ltr)","category":"PESTICIDES","unit":"Bottles","brand":"Excel Crop Care","purchasePrice":420,"sellingPrice":510,"currentStock":0,"minStockAlert":12,"description":"Systemic broad-spectrum weedicide for non-crop and pre-sowing total field weed clearance."},{"_id":"prod_014","productCode":"PST-MNZ-05","name":"Mancozeb 75% WP Fungicide (1 kg)","category":"PESTICIDES","unit":"Packets","brand":"Indofil M-45","purchasePrice":460,"sellingPrice":540,"currentStock":0,"minStockAlert":15,"description":"Contact fungicide with multisite action against leaf spots, turcicum blight, and downy mildew in maize and paddy."}],
   farmers: [],
   parties: [],
-  sales: [
-    {
-      _id: 'sale_demo_001',
-      accessKey: 'ak_demo_001_9f8a2b3c4d5e6f7a',
-      invoiceNo: 'INV-2026-001',
-      invoiceNumber: 'INV-2026-001',
-      invoiceCode: 'INV-2026-001',
-      date: new Date(Date.now() - 86400000).toISOString(),
-      customerName: 'Ramesh Majhi (Farmer)',
-      customerPhone: '9437128950',
-      customerAddress: 'Village Jharigam, Nabarangpur, 764076, Odisha',
-      items: [
-        {
-          productId: 'prod_001',
-          productCode: 'FRT-DAP-01',
-          productName: 'DAP 18:46:00 Fertilizer (50 kg)',
-          name: 'DAP 18:46:00 Fertilizer (50 kg)',
-          category: 'FERTILIZERS',
-          unit: 'Bags',
-          quantity: 5,
-          qty: 5,
-          unitPrice: 1350,
-          rate: 1350,
-          gstRate: 5,
-          total: 6750,
-          amount: 6750
-        },
-        {
-          productId: 'prod_006',
-          productCode: 'SED-CRN-01',
-          productName: 'Pioneer Hybrid Corn Seed P3396 (4 kg)',
-          name: 'Pioneer Hybrid Corn Seed P3396 (4 kg)',
-          category: 'SEEDS',
-          unit: 'Packets',
-          quantity: 6,
-          qty: 6,
-          unitPrice: 1850,
-          rate: 1850,
-          gstRate: 0,
-          total: 11100,
-          amount: 11100
-        },
-        {
-          productId: 'prod_010',
-          productCode: 'PST-CRG-01',
-          productName: 'Coragen Insecticide (150 ml)',
-          name: 'Coragen Insecticide (150 ml)',
-          category: 'PESTICIDES',
-          unit: 'Bottles',
-          quantity: 1,
-          qty: 1,
-          unitPrice: 1850,
-          rate: 1850,
-          gstRate: 18,
-          total: 1850,
-          amount: 1850
-        }
-      ],
-      subtotal: 19700,
-      discount: 500,
-      tax: 670,
-      taxTotal: 670,
-      grandTotal: 19870,
-      total: 19870,
-      paidAmount: 19870,
-      balanceDue: 0,
-      paymentMode: 'UPI',
-      paymentStatus: 'PAID',
-      notes: 'Delivered to farm in Jharigam. Paid in full via PhonePe UPI.',
-      createdAt: new Date(Date.now() - 86400000).toISOString()
-    },
-    {
-      _id: 'sale_demo_002',
-      accessKey: 'ak_demo_002_1a2b3c4d5e6f7a8b',
-      invoiceNo: 'INV-2026-002',
-      invoiceNumber: 'INV-2026-002',
-      invoiceCode: 'INV-2026-002',
-      date: new Date().toISOString(),
-      customerName: 'Kisan Agro Feeds & Mills',
-      customerPhone: '9777986964',
-      customerGst: '21AABCN1092M1Z4',
-      customerAddress: 'Industrial Area, Nabarangpur, 764059, Odisha',
-      items: [
-        {
-          productId: 'prod_002',
-          productCode: 'FRT-UREA-02',
-          productName: 'Neem Coated Urea (45 kg)',
-          name: 'Neem Coated Urea (45 kg)',
-          category: 'FERTILIZERS',
-          unit: 'Bags',
-          quantity: 50,
-          qty: 50,
-          unitPrice: 266,
-          rate: 266,
-          gstRate: 5,
-          total: 13300,
-          amount: 13300
-        },
-        {
-          productId: 'prod_004',
-          productCode: 'FRT-MOP-04',
-          productName: 'Muriate of Potash - MOP (50 kg)',
-          name: 'Muriate of Potash - MOP (50 kg)',
-          category: 'FERTILIZERS',
-          unit: 'Bags',
-          quantity: 10,
-          qty: 10,
-          unitPrice: 1700,
-          rate: 1700,
-          gstRate: 5,
-          total: 17000,
-          amount: 17000
-        }
-      ],
-      subtotal: 30300,
-      discount: 300,
-      tax: 1500,
-      taxTotal: 1500,
-      grandTotal: 31500,
-      total: 31500,
-      paidAmount: 20000,
-      balanceDue: 11500,
-      paymentMode: 'BANK_TRANSFER',
-      paymentStatus: 'PARTIAL',
-      notes: 'Advance ₹20,000 received by NEFT. Balance ₹11,500 due in 15 days.',
-      createdAt: new Date().toISOString()
-    }
-  ],
+  sales: [],
   purchases: [],
   loans: [],
   expenses: [],
@@ -264,7 +137,7 @@ export async function onRequest(context) {
   if (path === '/api/public/products') {
     let products = await getStore(env, 'products', []);
     if (!products || products.length === 0 || products.every(p => (p.name || '').includes('[ACCEPTANCE]'))) {
-      products = [{"_id":"prod_001","productCode":"FRT-DAP-01","name":"DAP 18:46:00 Fertilizer (50 kg)","category":"FERTILIZERS","unit":"Bags","brand":"IFFCO / Coromandel","purchasePrice":1250,"sellingPrice":1350,"currentStock":250,"minStockAlert":30,"description":"Di-Ammonium Phosphate with 18% Nitrogen and 46% Phosphorus. Essential for robust root establishment and vigorous early corn growth."},{"_id":"prod_002","productCode":"FRT-UREA-02","name":"Neem Coated Urea (45 kg)","category":"FERTILIZERS","unit":"Bags","brand":"IFFCO / KRIBHCO","purchasePrice":242,"sellingPrice":266,"currentStock":400,"minStockAlert":50,"description":"High-efficiency 46% Nitrogen fertilizer coated with neem oil for sustained release and healthy vegetative leaf growth in maize crops."},{"_id":"prod_003","productCode":"FRT-SULPH-03","name":"Ammonium Sulphate Fertilizer (50 kg)","category":"FERTILIZERS","unit":"Bags","brand":"GSFC / FACT","purchasePrice":780,"sellingPrice":890,"currentStock":180,"minStockAlert":20,"description":"Contains 20.6% Ammoniacal Nitrogen and 24% Sulphur. Promotes high protein synthesis, cob development, and soil conditioning."},{"_id":"prod_004","productCode":"FRT-MOP-04","name":"Muriate of Potash - MOP (50 kg)","category":"FERTILIZERS","unit":"Bags","brand":"IPL / Coromandel","purchasePrice":1550,"sellingPrice":1700,"currentStock":150,"minStockAlert":20,"description":"Supplies 60% Potassium (K2O). Strengthens corn stalks against lodging, enhances drought resistance, and maximizes grain weight."},{"_id":"prod_005","productCode":"FRT-ZINC-05","name":"Zinc Sulphate 33% Monohydrate (5 kg)","category":"FERTILIZERS","unit":"Bags","brand":"Tata Rallis / Aries Agro","purchasePrice":380,"sellingPrice":450,"currentStock":90,"minStockAlert":15,"description":"Vital micronutrient for corn cultivation. Prevents white bud chlorosis, stimulates enzymatic activity, and ensures full cob grain filling."},{"_id":"prod_006","productCode":"SED-CRN-01","name":"Pioneer Hybrid Corn Seed P3396 (4 kg)","category":"SEEDS","unit":"Packets","brand":"Corteva Pioneer","purchasePrice":1650,"sellingPrice":1850,"currentStock":350,"minStockAlert":40,"description":"High-yielding champion yellow hybrid corn seed with strong root anchorage, uniform cob size, and excellent leaf blight tolerance."},{"_id":"prod_007","productCode":"SED-CRN-02","name":"Syngenta NK-6240 Hybrid Maize Seed (4 kg)","category":"SEEDS","unit":"Packets","brand":"Syngenta","purchasePrice":1580,"sellingPrice":1780,"currentStock":280,"minStockAlert":35,"description":"High test-weight hybrid corn seed. Outstanding drought tolerance and heavy grain filling tailored for Odisha soil conditions."},{"_id":"prod_008","productCode":"SED-CRN-03","name":"CP-333 Hybrid Corn Seed (4 kg)","category":"SEEDS","unit":"Packets","brand":"CP Seeds","purchasePrice":1500,"sellingPrice":1720,"currentStock":220,"minStockAlert":25,"description":"Commercial grain producer favorite with deep yellow-orange kernels, tight husk cover, and premium market selling value."},{"_id":"prod_009","productCode":"SED-PAD-04","name":"Swarna MTU-7029 Certified Paddy Seed (30 kg)","category":"SEEDS","unit":"Bags","brand":"OSSC Certified","purchasePrice":1100,"sellingPrice":1250,"currentStock":160,"minStockAlert":20,"description":"High-germination certified foundation paddy seed with high tillering capacity and pest tolerance."},{"_id":"prod_010","productCode":"PST-CRG-01","name":"Coragen Insecticide (150 ml)","category":"PESTICIDES","unit":"Bottles","brand":"FMC / Rallis","purchasePrice":1680,"sellingPrice":1850,"currentStock":85,"minStockAlert":10,"description":"Chlorantraniliprole 18.5% SC. Gold-standard control for Fall Armyworm (FAW) and stem borers in corn with long-lasting crop protection."},{"_id":"prod_011","productCode":"PST-EMA-02","name":"Emamectin Benzoate 5% SG (100 g)","category":"PESTICIDES","unit":"Packets","brand":"Crystal Crop Protection","purchasePrice":380,"sellingPrice":460,"currentStock":110,"minStockAlert":15,"description":"High-potency modern insecticide for rapid knockdown of caterpillars, leaf webbers, and whorl maggots in maize."},{"_id":"prod_012","productCode":"PST-CHP-03","name":"Chlorpyrifos 50% + Cypermethrin 5% EC (1 Ltr)","category":"PESTICIDES","unit":"Bottles","brand":"Tata Rallis","purchasePrice":520,"sellingPrice":620,"currentStock":75,"minStockAlert":10,"description":"Broad-spectrum contact and stomach insecticide for soil pests, termites, and foliage-feeding chewing insects."},{"_id":"prod_013","productCode":"PST-GLY-04","name":"Glyphosate 41% SL Herbicide (1 Ltr)","category":"PESTICIDES","unit":"Bottles","brand":"Excel Crop Care","purchasePrice":420,"sellingPrice":510,"currentStock":95,"minStockAlert":12,"description":"Systemic broad-spectrum weedicide for non-crop and pre-sowing total field weed clearance."},{"_id":"prod_014","productCode":"PST-MNZ-05","name":"Mancozeb 75% WP Fungicide (1 kg)","category":"PESTICIDES","unit":"Packets","brand":"Indofil M-45","purchasePrice":460,"sellingPrice":540,"currentStock":120,"minStockAlert":15,"description":"Contact fungicide with multisite action against leaf spots, turcicum blight, and downy mildew in maize and paddy."}];
+      products = [{"_id":"prod_001","productCode":"FRT-DAP-01","name":"DAP 18:46:00 Fertilizer (50 kg)","category":"FERTILIZERS","unit":"Bags","brand":"IFFCO / Coromandel","purchasePrice":1250,"sellingPrice":1350,"currentStock":0,"minStockAlert":30,"description":"Di-Ammonium Phosphate with 18% Nitrogen and 46% Phosphorus. Essential for robust root establishment and vigorous early corn growth."},{"_id":"prod_002","productCode":"FRT-UREA-02","name":"Neem Coated Urea (45 kg)","category":"FERTILIZERS","unit":"Bags","brand":"IFFCO / KRIBHCO","purchasePrice":242,"sellingPrice":266,"currentStock":0,"minStockAlert":50,"description":"High-efficiency 46% Nitrogen fertilizer coated with neem oil for sustained release and healthy vegetative leaf growth in maize crops."},{"_id":"prod_003","productCode":"FRT-SULPH-03","name":"Ammonium Sulphate Fertilizer (50 kg)","category":"FERTILIZERS","unit":"Bags","brand":"GSFC / FACT","purchasePrice":780,"sellingPrice":890,"currentStock":0,"minStockAlert":20,"description":"Contains 20.6% Ammoniacal Nitrogen and 24% Sulphur. Promotes high protein synthesis, cob development, and soil conditioning."},{"_id":"prod_004","productCode":"FRT-MOP-04","name":"Muriate of Potash - MOP (50 kg)","category":"FERTILIZERS","unit":"Bags","brand":"IPL / Coromandel","purchasePrice":1550,"sellingPrice":1700,"currentStock":0,"minStockAlert":20,"description":"Supplies 60% Potassium (K2O). Strengthens corn stalks against lodging, enhances drought resistance, and maximizes grain weight."},{"_id":"prod_005","productCode":"FRT-ZINC-05","name":"Zinc Sulphate 33% Monohydrate (5 kg)","category":"FERTILIZERS","unit":"Bags","brand":"Tata Rallis / Aries Agro","purchasePrice":380,"sellingPrice":450,"currentStock":0,"minStockAlert":15,"description":"Vital micronutrient for corn cultivation. Prevents white bud chlorosis, stimulates enzymatic activity, and ensures full cob grain filling."},{"_id":"prod_006","productCode":"SED-CRN-01","name":"Pioneer Hybrid Corn Seed P3396 (4 kg)","category":"SEEDS","unit":"Packets","brand":"Corteva Pioneer","purchasePrice":1650,"sellingPrice":1850,"currentStock":0,"minStockAlert":40,"description":"High-yielding champion yellow hybrid corn seed with strong root anchorage, uniform cob size, and excellent leaf blight tolerance."},{"_id":"prod_007","productCode":"SED-CRN-02","name":"Syngenta NK-6240 Hybrid Maize Seed (4 kg)","category":"SEEDS","unit":"Packets","brand":"Syngenta","purchasePrice":1580,"sellingPrice":1780,"currentStock":0,"minStockAlert":35,"description":"High test-weight hybrid corn seed. Outstanding drought tolerance and heavy grain filling tailored for Odisha soil conditions."},{"_id":"prod_008","productCode":"SED-CRN-03","name":"CP-333 Hybrid Corn Seed (4 kg)","category":"SEEDS","unit":"Packets","brand":"CP Seeds","purchasePrice":1500,"sellingPrice":1720,"currentStock":0,"minStockAlert":25,"description":"Commercial grain producer favorite with deep yellow-orange kernels, tight husk cover, and premium market selling value."},{"_id":"prod_009","productCode":"SED-PAD-04","name":"Swarna MTU-7029 Certified Paddy Seed (30 kg)","category":"SEEDS","unit":"Bags","brand":"OSSC Certified","purchasePrice":1100,"sellingPrice":1250,"currentStock":0,"minStockAlert":20,"description":"High-germination certified foundation paddy seed with high tillering capacity and pest tolerance."},{"_id":"prod_010","productCode":"PST-CRG-01","name":"Coragen Insecticide (150 ml)","category":"PESTICIDES","unit":"Bottles","brand":"FMC / Rallis","purchasePrice":1680,"sellingPrice":1850,"currentStock":0,"minStockAlert":10,"description":"Chlorantraniliprole 18.5% SC. Gold-standard control for Fall Armyworm (FAW) and stem borers in corn with long-lasting crop protection."},{"_id":"prod_011","productCode":"PST-EMA-02","name":"Emamectin Benzoate 5% SG (100 g)","category":"PESTICIDES","unit":"Packets","brand":"Crystal Crop Protection","purchasePrice":380,"sellingPrice":460,"currentStock":0,"minStockAlert":15,"description":"High-potency modern insecticide for rapid knockdown of caterpillars, leaf webbers, and whorl maggots in maize."},{"_id":"prod_012","productCode":"PST-CHP-03","name":"Chlorpyrifos 50% + Cypermethrin 5% EC (1 Ltr)","category":"PESTICIDES","unit":"Bottles","brand":"Tata Rallis","purchasePrice":520,"sellingPrice":620,"currentStock":0,"minStockAlert":10,"description":"Broad-spectrum contact and stomach insecticide for soil pests, termites, and foliage-feeding chewing insects."},{"_id":"prod_013","productCode":"PST-GLY-04","name":"Glyphosate 41% SL Herbicide (1 Ltr)","category":"PESTICIDES","unit":"Bottles","brand":"Excel Crop Care","purchasePrice":420,"sellingPrice":510,"currentStock":0,"minStockAlert":12,"description":"Systemic broad-spectrum weedicide for non-crop and pre-sowing total field weed clearance."},{"_id":"prod_014","productCode":"PST-MNZ-05","name":"Mancozeb 75% WP Fungicide (1 kg)","category":"PESTICIDES","unit":"Packets","brand":"Indofil M-45","purchasePrice":460,"sellingPrice":540,"currentStock":0,"minStockAlert":15,"description":"Contact fungicide with multisite action against leaf spots, turcicum blight, and downy mildew in maize and paddy."}];
     // Section 10 Allow-list: Never expose purchasePrice, sellingPrice, margin, or exact stock count to public
     const safeProducts = products.map(p => ({
       _id: p._id,
@@ -1341,6 +1214,17 @@ Provide accurate, friendly farming advice for crops (Maize, Paddy, Pulses), fert
       reply,
       source: 'knowledge-base',
       language: lang
+    });
+  }
+
+  if (path.startsWith('/whatsapp')) {
+    return jsonResponse({
+      success: true,
+      status: 'DISCONNECTED',
+      connected: false,
+      qrDataUrl: null,
+      adminPhone: '9777986964',
+      message: 'WhatsApp Multi-Device Gateway runs on the dedicated Node server process.'
     });
   }
 

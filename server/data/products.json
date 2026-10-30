@@ -8,7 +8,7 @@
     "brand": "IFFCO / Coromandel",
     "purchasePrice": 1250,
     "sellingPrice": 1350,
-    "currentStock": 250,
+    "currentStock": 0,
     "minStockAlert": 30,
     "description": "Di-Ammonium Phosphate with 18% Nitrogen and 46% Phosphorus. Essential for robust root establishment and vigorous early corn growth."
   },
@@ -21,7 +21,7 @@
     "brand": "IFFCO / KRIBHCO",
     "purchasePrice": 242,
     "sellingPrice": 266,
-    "currentStock": 398,
+    "currentStock": 0,
     "minStockAlert": 50,
     "description": "High-efficiency 46% Nitrogen fertilizer coated with neem oil for sustained release and healthy vegetative leaf growth in maize crops."
   },
@@ -34,7 +34,7 @@
     "brand": "GSFC / FACT",
     "purchasePrice": 780,
     "sellingPrice": 890,
-    "currentStock": 180,
+    "currentStock": 0,
     "minStockAlert": 20,
     "description": "Contains 20.6% Ammoniacal Nitrogen and 24% Sulphur. Promotes high protein synthesis, cob development, and soil conditioning."
   },
@@ -47,7 +47,7 @@
     "brand": "IPL / Coromandel",
     "purchasePrice": 1550,
     "sellingPrice": 1700,
-    "currentStock": 150,
+    "currentStock": 0,
     "minStockAlert": 20,
     "description": "Supplies 60% Potassium (K2O). Strengthens corn stalks against lodging, enhances drought resistance, and maximizes grain weight."
   },
@@ -60,7 +60,7 @@
     "brand": "Tata Rallis / Aries Agro",
     "purchasePrice": 380,
     "sellingPrice": 450,
-    "currentStock": 90,
+    "currentStock": 0,
     "minStockAlert": 15,
     "description": "Vital micronutrient for corn cultivation. Prevents white bud chlorosis, stimulates enzymatic activity, and ensures full cob grain filling."
   },
@@ -73,7 +73,7 @@
     "brand": "Corteva Pioneer",
     "purchasePrice": 1650,
     "sellingPrice": 1850,
-    "currentStock": 350,
+    "currentStock": 0,
     "minStockAlert": 40,
     "description": "High-yielding champion yellow hybrid corn seed with strong root anchorage, uniform cob size, and excellent leaf blight tolerance."
   },
@@ -86,7 +86,7 @@
     "brand": "Syngenta",
     "purchasePrice": 1580,
     "sellingPrice": 1780,
-    "currentStock": 280,
+    "currentStock": 0,
     "minStockAlert": 35,
     "description": "High test-weight hybrid corn seed. Outstanding drought tolerance and heavy grain filling tailored for Odisha soil conditions."
   },
@@ -99,7 +99,7 @@
     "brand": "CP Seeds",
     "purchasePrice": 1500,
     "sellingPrice": 1720,
-    "currentStock": 220,
+    "currentStock": 0,
     "minStockAlert": 25,
     "description": "Commercial grain producer favorite with deep yellow-orange kernels, tight husk cover, and premium market selling value."
   },
@@ -112,7 +112,7 @@
     "brand": "OSSC Certified",
     "purchasePrice": 1100,
     "sellingPrice": 1250,
-    "currentStock": 160,
+    "currentStock": 0,
     "minStockAlert": 20,
     "description": "High-germination certified foundation paddy seed with high tillering capacity and pest tolerance."
   },
@@ -125,7 +125,7 @@
     "brand": "FMC / Rallis",
     "purchasePrice": 1680,
     "sellingPrice": 1850,
-    "currentStock": 85,
+    "currentStock": 0,
     "minStockAlert": 10,
     "description": "Chlorantraniliprole 18.5% SC. Gold-standard control for Fall Armyworm (FAW) and stem borers in corn with long-lasting crop protection."
   },
@@ -138,7 +138,7 @@
     "brand": "Crystal Crop Protection",
     "purchasePrice": 380,
     "sellingPrice": 460,
-    "currentStock": 110,
+    "currentStock": 0,
     "minStockAlert": 15,
     "description": "High-potency modern insecticide for rapid knockdown of caterpillars, leaf webbers, and whorl maggots in maize."
   },
@@ -151,7 +151,7 @@
     "brand": "Tata Rallis",
     "purchasePrice": 520,
     "sellingPrice": 620,
-    "currentStock": 75,
+    "currentStock": 0,
     "minStockAlert": 10,
     "description": "Broad-spectrum contact and stomach insecticide for soil pests, termites, and foliage-feeding chewing insects."
   },
@@ -164,7 +164,7 @@
     "brand": "Excel Crop Care",
     "purchasePrice": 420,
     "sellingPrice": 510,
-    "currentStock": 95,
+    "currentStock": 0,
     "minStockAlert": 12,
     "description": "Systemic broad-spectrum weedicide for non-crop and pre-sowing total field weed clearance."
   },
@@ -177,7 +177,7 @@
     "brand": "Indofil M-45",
     "purchasePrice": 460,
     "sellingPrice": 540,
-    "currentStock": 120,
+    "currentStock": 0,
     "minStockAlert": 15,
     "description": "Contact fungicide with multisite action against leaf spots, turcicum blight, and downy mildew in maize and paddy."
   }
