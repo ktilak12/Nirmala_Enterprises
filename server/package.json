@@ -15,7 +15,9 @@
     "verify": "node src/scripts/verify-integrity.js",
     "verify:acceptance": "node src/scripts/verify-acceptance.mjs",
     "recompute": "node src/scripts/recompute-stock.js",
-    "test:atomicity": "node src/scripts/test-atomicity.js"
+    "test:atomicity": "node src/scripts/test-atomicity.js",
+    "db:init-rs": "node src/scripts/init-replicaset.mjs",
+    "clean:data": "node ../scripts/clear-dummy-data.mjs"
   },
   "dependencies": {
     "@whiskeysockets/baileys": "^7.0.0-rc14",

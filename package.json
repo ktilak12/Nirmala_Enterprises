@@ -15,6 +15,7 @@
     "sync": "node scripts/sync-data.mjs pull",
     "sync:pull": "node scripts/sync-data.mjs pull",
     "sync:push": "node scripts/sync-data.mjs push",
+    "clean:data": "node scripts/clear-dummy-data.mjs",
     "deploy": "wrangler pages deploy server/public --project-name=nirmala-enterprises --branch=main"
   },
   "devDependencies": {
