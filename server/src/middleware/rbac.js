@@ -43,3 +43,21 @@ export function requireAnyPermission(...permissions) {
     return next();
   };
 }
+
+/** Specific role gate (e.g. SUPER_ADMIN only for hardware/WhatsApp gateway pairing). */
+export function requireRole(...roles) {
+  return (req, _res, next) => {
+    const role = req.user?.role;
+    if (!role) return next(forbidden('Not signed in.'));
+
+    if (!roles.includes(role)) {
+      return next(
+        forbidden(
+          `Forbidden: this action requires one of the following roles: ${roles.join(', ')}.`,
+          { requiredRoles: roles, userRole: role },
+        ),
+      );
+    }
+    return next();
+  };
+}
