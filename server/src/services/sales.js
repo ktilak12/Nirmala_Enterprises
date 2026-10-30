@@ -32,6 +32,16 @@ import { whatsappGateway } from './whatsappGateway.js';
  */
 export async function createSale({ payload, actor, req }) {
   return withTransaction(async (session) => {
+    // Idempotency check: if this sale was already submitted (e.g. counter click twice or network retry), return existing
+    if (payload.idempotencyKey) {
+      const existing = await Sale.findOne({ idempotencyKey: payload.idempotencyKey })
+        .populate('invoice')
+        .session(session);
+      if (existing) {
+        return { sale: existing, invoice: existing.invoice, payment: null, idempotent: true };
+      }
+    }
+
     const settings = await getSettings(session);
     const date = payload.date ? new Date(payload.date) : new Date();
 
@@ -140,6 +150,7 @@ export async function createSale({ payload, actor, req }) {
           outstanding,
           paymentStatus,
           isCommoditySale,
+          idempotencyKey: payload.idempotencyKey ?? undefined,
           notes: payload.notes ?? '',
           createdBy: actor._id,
           createdByName: actor.name,
